@@ -5,16 +5,28 @@ on:
     tags:
       - cli-v*
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.5.0)'
+        required: true
+        default: ''
 
 permissions:
-  contents: read
+  contents: write  # required to create GitHub Releases and upload assets
 
 concurrency:
   group: release-cli-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  REPO_OWNER: navadeep0508
+  REPO_NAME: KRYTH-Browser
+
 jobs:
   resolve:
+    name: Resolve version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -27,15 +39,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" != refs/tags/cli-v* ]]; then
-            echo "Run this workflow on an existing cli-v<version> tag."
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            VERSION="${VERSION#v}"
+          elif [[ "$GITHUB_REF" == refs/tags/cli-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#cli-v}"
+            VERSION="${VERSION#v}"
+          else
+            echo "Run this workflow on a cli-v<version> tag or provide a version input." >&2
             exit 1
           fi
-          VERSION="${GITHUB_REF_NAME#cli-v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=cli-v${VERSION}" >> "$GITHUB_OUTPUT"
 
   guard:
+    name: Verify version matches Cargo.toml
     needs: resolve
     runs-on: ubuntu-latest
     steps:
@@ -48,33 +66,41 @@ jobs:
           CARGO_VERSION="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
           RELEASE_VERSION="${{ needs.resolve.outputs.version }}"
           if [ "$CARGO_VERSION" != "$RELEASE_VERSION" ]; then
-            echo "Cargo.toml version (${CARGO_VERSION}) does not match release version (${RELEASE_VERSION})"
+            echo "Cargo.toml version (${CARGO_VERSION}) does not match release version (${RELEASE_VERSION})" >&2
             exit 1
           fi
           echo "Version guard passed: ${RELEASE_VERSION}"
 
   build-cli:
+    name: Build CLI ${{ matrix.target }}
     needs: [resolve, guard]
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            archive: tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            archive: tar.gz
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            archive: tar.gz
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-24.04-arm
-            archive: tar.gz
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive: zip
-    runs-on: ${{ matrix.os }}
+            artifact_name: bsk-v${{ needs.resolve.outputs.version }}-x86_64-pc-windows-msvc.zip
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tar.gz
+            artifact_name: bsk-v${{ needs.resolve.outputs.version }}-x86_64-unknown-linux-musl.tar.gz
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            archive: tar.gz
+            artifact_name: bsk-v${{ needs.resolve.outputs.version }}-aarch64-unknown-linux-musl.tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+            artifact_name: bsk-v${{ needs.resolve.outputs.version }}-x86_64-apple-darwin.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+            artifact_name: bsk-v${{ needs.resolve.outputs.version }}-aarch64-apple-darwin.tar.gz
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@v6
 
@@ -91,37 +117,273 @@ jobs:
         shell: bash
         run: cargo build --release --locked -p bsk --target "${{ matrix.target }}"
 
-      - name: Package Unix build input (Mac signing happens internally)
-        if: matrix.archive == 'tar.gz'
+      - name: Package artifact
+        id: package
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
-          ARCHIVE="bsk-v${VERSION}-${{ matrix.target }}.tar.gz"
-          tar -czf "$ARCHIVE" -C "target/${{ matrix.target }}/release" bsk
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          TARGET="${{ matrix.target }}"
+          ARTIFACT_NAME="${{ matrix.artifact_name }}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            # PowerShell 5.1 compatible zip creation
+            pwsh -NoProfile -Command "Compress-Archive -Path target/${TARGET}/release/bsk.exe -DestinationPath ${ARTIFACT_NAME}"
+          else
+            tar -czf "${ARTIFACT_NAME}" -C "target/${TARGET}/release" bsk
+          fi
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=$(pwd)/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare Windows signing request
-        if: matrix.archive == 'zip'
-        shell: pwsh
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  build-extension:
+    name: Build browser extension
+    needs: [resolve, guard]
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension zip
         run: |
-          New-Item -ItemType Directory -Path unsigned | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/bsk.exe" unsigned/bsk.exe
-          python scripts/windows-release.py request
+          cd apps/extension
+          pnpm zip
 
-      - name: Upload unsigned Windows artifact for internal signing
-        if: matrix.archive == 'zip'
-        uses: actions/upload-artifact@v7
-        with:
-          name: bsk-windows-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
-          path: unsigned/*
-          if-no-files-found: error
-          retention-days: 7
+      - name: Package extension artifact
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          ARTIFACT_NAME="kryth-browser-extension-v${VERSION}.zip"
+          cd apps/extension
+          # wxt zip produces chrome-mv3.zip; rename to our convention
+          ls -la dist/chrome-mv3.zip 2>/dev/null || ls -la dist/*.zip 2>/dev/null || true
+          cp dist/chrome-mv3.zip "../${ARTIFACT_NAME}" 2>/dev/null || cp dist/*.zip "../${ARTIFACT_NAME}"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=$(pwd)/../${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Unix artifact
-        if: matrix.archive == 'tar.gz'
-        uses: actions/upload-artifact@v7
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: bsk-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.ARCHIVE }}
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
           if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: [resolve, guard, build-cli, build-extension]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download all CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/cli
+          merge-multiple: true
+
+      - name: Download extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-extension.outputs.artifact_name }}
+          path: dist/extension
+
+      - name: List downloaded artifacts
+        shell: bash
+        run: |
+          find dist -type f | sort
+
+      - name: Generate SHA-256 checksums
+        id: checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          cd dist
+          for f in cli/* extension/*; do
+            [ -f "$f" ] || continue
+            sha256sum "$f" | awk '{print $1"  *"$2}'
+          done > checksums.txt
+          cat checksums.txt
+          echo "checksums_path=$(pwd)/checksums.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Generate version.json manifest
+        id: manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          REPO="${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}"
+          TAG="cli-v${VERSION}"
+          cd dist
+
+          # Build the assets object from the downloaded files
+          python3 - <<'PY'
+          import json, hashlib, os, sys
+          version = "${VERSION}"
+          tag = "cli-v${VERSION}"
+          repo = "${REPO}"
+          server_url = "https://github.com"
+          branch = "main"
+          release_base = f"{server_url}/{repo}/releases/download/{tag}"
+
+          platform_map = {
+            "x86_64-pc-windows-msvc": "windows-x64",
+            "x86_64-unknown-linux-musl": "linux-x64",
+            "aarch64-unknown-linux-musl": "linux-arm64",
+            "x86_64-apple-darwin": "darwin-x64",
+            "aarch64-apple-darwin": "darwin-arm64",
+          }
+
+          assets = {}
+          cli_dir = os.path.join("cli")
+          ext_dir = os.path.join("extension")
+
+          # Map CLI artifacts
+          for fname in sorted(os.listdir(cli_dir)):
+            fpath = os.path.join(cli_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            # Parse target triple from filename: bsk-v<VERSION>-<triple>.zip or .tar.gz
+            prefix = f"bsk-v{version}-"
+            suffix_zip = ".zip"
+            suffix_tar = ".tar.gz"
+            triple = None
+            if fname.startswith(prefix) and fname.endswith(suffix_zip):
+                triple = fname[len(prefix):-len(suffix_zip)]
+            elif fname.startswith(prefix) and fname.endswith(suffix_tar):
+                triple = fname[len(prefix):-len(suffix_tar)]
+            if triple and triple in platform_map:
+                with open(fpath, "rb") as f:
+                    sha = hashlib.sha256(f.read()).hexdigest()
+                assets[platform_map[triple]] = {
+                    "url": f"{release_base}/{fname}",
+                    "sha256": sha,
+                }
+
+          # Map extension artifact
+          for fname in sorted(os.listdir(ext_dir)):
+            fpath = os.path.join(ext_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            if fname.endswith(".zip"):
+                with open(fpath, "rb") as f:
+                    sha = hashlib.sha256(f.read()).hexdigest()
+                assets["browser-extension"] = {
+                    "url": f"{release_base}/{fname}",
+                    "sha256": sha,
+                }
+
+          manifest = {
+              "name": "bsk",
+              "version": version,
+              "tag": tag,
+              "released_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+              "release_url": f"{server_url}/{repo}/releases/tag/{tag}",
+              "install_sh": f"https://raw.githubusercontent.com/{repo}/{branch}/install.sh",
+              "install_ps1": f"https://raw.githubusercontent.com/{repo}/{branch}/install.ps1",
+              "assets": assets,
+          }
+
+          with open("version.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          print(json.dumps(manifest, indent=2))
+          PY
+
+          echo "manifest_path=$(pwd)/version.json" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        id: create_release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          TAG="cli-v${VERSION}"
+          RELEASE_NOTES=$(cat <<'EOF'
+          # Browser Agent CLI v${VERSION}
+
+          ## Installation
+
+          ### macOS / Linux
+          ```sh
+          curl -fsSL https://raw.githubusercontent.com/navadeep0508/KRYTH-Browser/main/install.sh | sh
+          ```
+
+          ### Windows (PowerShell)
+          ```powershell
+          irm https://raw.githubusercontent.com/navadeep0508/KRYTH-Browser/main/install.ps1 | iex
+          ```
+
+          ## Assets
+
+          - CLI binaries for Windows, Linux, and macOS
+          - Browser extension zip (unpacked-extension install)
+          - SHA-256 checksums and version.json manifest included
+
+          ## Verification
+
+          Verify each downloaded artifact against checksums.txt before installation.
+          EOF
+          )
+          # Escape newlines for the gh CLI
+          RELEASE_NOTES_ESCAPED=$(printf '%s' "$RELEASE_NOTES" | awk '{printf "%s\\n", $0}')
+
+          gh release create "${TAG}" \
+            --title "Browser Agent CLI v${VERSION}" \
+            --notes "${RELEASE_NOTES_ESCAPED}" \
+            --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" \
+            --latest
+
+          echo "release_created=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CLI assets to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          TAG="cli-v${VERSION}"
+          for f in dist/cli/*; do
+            [ -f "$f" ] || continue
+            gh release upload "${TAG}" "$f" --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" --clobber
+          done
+
+      - name: Upload extension asset to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          TAG="cli-v${VERSION}"
+          for f in dist/extension/*; do
+            [ -f "$f" ] || continue
+            gh release upload "${TAG}" "$f" --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" --clobber
+          done
+
+      - name: Upload checksums and version.json to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          TAG="cli-v${VERSION}"
+          gh release upload "${TAG}" dist/checksums.txt dist/version.json --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" --clobber

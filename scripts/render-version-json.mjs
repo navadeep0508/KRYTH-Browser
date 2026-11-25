@@ -5,7 +5,7 @@
  * Usage:
  *   node scripts/render-version-json.mjs \
  *     --version 0.1.5 \
- *     --repo /Browser Agent \
+ *     --repo navadeep0508/KRYTH-Browser \
  *     --server-url https://github.com \
  *     --branch main \
  *     --dist dist \

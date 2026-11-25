@@ -12,9 +12,9 @@
 
 set -eu
 
-REPO="${BSK_REPO:-}"
+REPO="${BSK_REPO:-navadeep0508/KRYTH-Browser}"
 INSTALL_DIR="${BSK_INSTALL_DIR:-$HOME/.local/bin}"
-BASE_URL="${BSK_BASE_URL:-}"
+BASE_URL="${BSK_BASE_URL:-https://github.com/${REPO}}"
 
 log() {
   printf '==> %s\n' "$1" >&2

@@ -26,6 +26,7 @@ For an existing installation, check `bsk --version` and follow the
 
 ```bash
 # Download and run the installer directly
+curl -fsSL https://raw.githubusercontent.com/navadeep0508/KRYTH-Browser/main/install.sh | sh
 export PATH="${BSK_INSTALL_DIR:-$HOME/.local/bin}:$PATH"
 bsk --version
 ```
@@ -34,6 +35,7 @@ bsk --version
 
 ```powershell
 # Download and run the installer directly
+irm https://raw.githubusercontent.com/navadeep0508/KRYTH-Browser/main/install.ps1 | iex
 bsk --version
 ```
 

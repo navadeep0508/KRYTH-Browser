@@ -19,7 +19,7 @@ from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, HTTPRedirectHandler, build_opener
 import zipfile
 
-REPO = '/Browser Agent'
+REPO = 'navadeep0508/KRYTH-Browser'
 WORKFLOW = '.github/workflows/release-cli.yml'
 TAG = re.compile(r'cli-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')

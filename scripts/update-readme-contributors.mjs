@@ -23,7 +23,7 @@ export async function fetchContributors({
   const contributors = [];
   for (let page = 1; page <= 100; page += 1) {
     const response = await fetchImpl(
-      `https://api.github.com/repos//Browser Agent/contributors?per_page=100&page=${page}`,
+      `https://api.github.com/repos/navadeep0508/KRYTH-Browser/contributors?per_page=100&page=${page}`,
       {
         headers: {
           Accept: "application/vnd.github+json",

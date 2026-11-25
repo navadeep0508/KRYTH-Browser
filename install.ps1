@@ -16,9 +16,10 @@ Usage:
 
 $ErrorActionPreference = "Stop"
 
-$Repo = if ($env:BSK_REPO) { $env:BSK_REPO } else { "" }
+$Repo = if ($env:BSK_REPO) { $env:BSK_REPO } else { "navadeep0508/KRYTH-Browser" }
 $InstallDir = if ($env:BSK_INSTALL_DIR) { $env:BSK_INSTALL_DIR } else { Join-Path $HOME ".local\bin" }
 $InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir)
+$GitHub = "https://github.com/${Repo}"
 
 function Write-Log {
     param([string]$Message)

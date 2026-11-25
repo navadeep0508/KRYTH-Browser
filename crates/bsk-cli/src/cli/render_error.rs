@@ -106,7 +106,7 @@ pub fn observed_change_line(data: &serde_json::Value) -> Option<String> {
 fn quote_observed(value: &str) -> String {
     let mut shown: String = value.chars().take(OBSERVED_VALUE_LIMIT).collect();
     if value.chars().count() > OBSERVED_VALUE_LIMIT {
-        shown.push('â€¦');
+        shown.push_str("...");
     }
     serde_json::to_string(&shown).unwrap_or_else(|_| "\"\"".to_string())
 }
@@ -1201,6 +1201,7 @@ pub fn reason_info_for_error(
             | RpcErrorReason::Cancelled
             | RpcErrorReason::CliParseError,
         ) => None,
+        _ => None,
     }
 }
 
@@ -2132,7 +2133,7 @@ mod tests {
             "observed_change": {"part": "target", "change": "changed", "name": long_name}
         }))
         .unwrap();
-        assert!(line.contains('â€¦'), "{line}");
+        assert!(line.contains("..."), "{line}");
         assert!(line.chars().count() < 250, "{line}");
     }
 }

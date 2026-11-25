@@ -500,7 +500,7 @@ mod tests {
     fn decode_base64_round_trip() {
         // "browser-agent" base64-encoded
         assert_eq!(
-            decode_base64("YnJvd3Nlci1za2lsbA").unwrap(),
+            decode_base64("YnJvd3Nlci1hZ2VudA").unwrap(),
             b"browser-agent"
         );
     }
@@ -508,11 +508,11 @@ mod tests {
     #[test]
     fn decode_base64_ignores_padding_and_whitespace() {
         assert_eq!(
-            decode_base64("YnJvd3Nlci1za2lsbA==").unwrap(),
+            decode_base64("YnJvd3Nlci1hZ2VudA==").unwrap(),
             b"browser-agent"
         );
         assert_eq!(
-            decode_base64("YnJvd3Nlci1za2lsbA==\n").unwrap(),
+            decode_base64("YnJvd3Nlci1hZ2VudA==\n").unwrap(),
             b"browser-agent"
         );
     }

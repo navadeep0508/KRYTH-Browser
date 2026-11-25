@@ -4,10 +4,10 @@
 use super::*;
 
 pub const DEFAULT_MANIFEST_URL: &str =
-    "https://github.com/browser-agent/releases/latest/download/version.json";
+    "https://github.com/navadeep0508/KRYTH-Browser/releases/latest/download/version.json";
 const GITHUB_MANIFEST_URL: &str =
-    "https://github.com/browser-agent/releases/latest/download/version.json";
-const GITHUB_RELEASE_BASE: &str = "https://github.com/browser-agent/releases/download";
+    "https://github.com/navadeep0508/KRYTH-Browser/releases/latest/download/version.json";
+const GITHUB_RELEASE_BASE: &str = "https://github.com/navadeep0508/KRYTH-Browser/releases/download";
 const RECOVERY_HINT: &str = "Check your network/proxy settings and retry `bsk update`.";
 
 #[derive(Debug, thiserror::Error)]

@@ -110,14 +110,10 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Add cross-compilation target
-        shell: bash
-        run: rustup target add ${{ matrix.target }}
-
       - name: Build bsk
         shell: bash
         run: |
-          RUST_BACKTRACE=full cargo build --release -p bsk --target "${{ matrix.target }}" 2>&1 | tail -80
+          RUST_BACKTRACE=full cargo build --release -p bsk 2>&1 | tail -80
 
       - name: Package artifact
         id: package
@@ -125,12 +121,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
-          TARGET="${{ matrix.target }}"
-          ARTIFACT_NAME="${{ matrix.artifact_name }}"
+          HOST_TARGET=$(rustc --print host)
+          ARTIFACT_NAME="bsk-v${VERSION}-${HOST_TARGET}.${{ matrix.archive }}"
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            pwsh -NoProfile -Command "Compress-Archive -Path target/${TARGET}/release/bsk.exe -DestinationPath ${ARTIFACT_NAME}"
+            pwsh -NoProfile -Command "Compress-Archive -Path target/release/bsk.exe -DestinationPath ${ARTIFACT_NAME}"
           else
-            tar -czf "${ARTIFACT_NAME}" -C "target/${TARGET}/release" bsk
+            tar -czf "${ARTIFACT_NAME}" -C "target/release" bsk
           fi
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_path=${{ runner.temp }}/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"

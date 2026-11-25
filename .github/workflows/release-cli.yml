@@ -116,8 +116,7 @@ jobs:
 
       - name: Build bsk
         shell: bash
-        run: |
-          CARGO_LOG=info cargo build --release -p bsk --target "${{ matrix.target }}" 2>&1 | tail -100
+        run: cargo build --release -p bsk --target "${{ matrix.target }}"
 
       - name: Package artifact
         id: package

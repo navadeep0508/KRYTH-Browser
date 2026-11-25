@@ -1706,10 +1706,15 @@ fn validate_existing_start(args: &StartArgs, status: &StatusResult) -> Result<()
 
 #[cfg(unix)]
 fn send_term(pid: u32) -> Result<()> {
-    use nix::sys::signal::{Signal, kill};
-    use nix::unistd::Pid;
-    kill(Pid::from_raw(pid as i32), Signal::SIGTERM)
-        .map_err(|e| anyhow::anyhow!("kill -TERM {pid}: {e}"))
+    use libc::{kill, SIGTERM, pid_t};
+    use std::io::Error;
+    unsafe {
+        if kill(pid as pid_t, SIGTERM) == 0 {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("kill -TERM {pid}: {}", Error::last_os_error()))
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -1724,10 +1729,15 @@ fn send_term(_pid: u32) -> Result<()> {
 
 #[cfg(unix)]
 fn send_kill(pid: u32) -> Result<()> {
-    use nix::sys::signal::{Signal, kill};
-    use nix::unistd::Pid;
-    kill(Pid::from_raw(pid as i32), Signal::SIGKILL)
-        .map_err(|e| anyhow::anyhow!("kill -KILL {pid}: {e}"))
+    use libc::{kill, SIGKILL, pid_t};
+    use std::io::Error;
+    unsafe {
+        if kill(pid as pid_t, SIGKILL) == 0 {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("kill -KILL {pid}: {}", Error::last_os_error()))
+        }
+    }
 }
 
 #[cfg(windows)]

@@ -88,15 +88,18 @@ pub fn pid_alive(pid: u32) -> bool {
     }
     #[cfg(unix)]
     {
-        use nix::errno::Errno;
-        use nix::sys::signal::kill;
-        use nix::unistd::Pid;
-        match kill(Pid::from_raw(pid as i32), None) {
-            Ok(()) => true,
-            Err(Errno::ESRCH) => false,
-            // EPERM means the process exists but we can't signal it — still alive.
-            Err(Errno::EPERM) => true,
-            Err(_) => false,
+        use libc::{kill, ESRCH, EPERM, pid_t};
+        use std::io::Error;
+        unsafe {
+            match kill(pid as pid_t, 0) {
+                0 => true,
+                -1 => match Error::last_os_error().raw_os_error() {
+                    Some(ESRCH) => false,
+                    Some(EPERM) => true,
+                    _ => false,
+                },
+                _ => false,
+            }
         }
     }
 

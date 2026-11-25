@@ -1,9 +1,6 @@
 //! Exercise a real CLI signal against a controlled late successful RPC response.
 use bsk::daemon::info::DaemonInfo;
-use nix::{
-    sys::signal::{Signal, kill},
-    unistd::Pid,
-};
+use libc::{kill, SIGINT, pid_t};
 use serde_json::{Value, json};
 use std::{
     process::Stdio,
@@ -104,7 +101,7 @@ async fn sigint_stops_step_even_when_the_current_rpc_returns_success() {
         tokio::time::timeout(Duration::from_secs(5), pending.notified())
             .await
             .unwrap();
-        kill(Pid::from_raw(child.id().unwrap() as i32), Signal::SIGINT).unwrap();
+        unsafe { kill(child.id().unwrap() as pid_t, SIGINT) };
         let out = tokio::time::timeout(Duration::from_secs(8), child.wait_with_output())
             .await
             .unwrap()

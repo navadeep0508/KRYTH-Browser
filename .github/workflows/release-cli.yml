@@ -104,9 +104,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Add cross-compilation target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
 
       - name: Install musl tools (Linux)
         if: runner.os == 'Linux'
@@ -126,13 +132,12 @@ jobs:
           TARGET="${{ matrix.target }}"
           ARTIFACT_NAME="${{ matrix.artifact_name }}"
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            # PowerShell 5.1 compatible zip creation
             pwsh -NoProfile -Command "Compress-Archive -Path target/${TARGET}/release/bsk.exe -DestinationPath ${ARTIFACT_NAME}"
           else
             tar -czf "${ARTIFACT_NAME}" -C "target/${TARGET}/release" bsk
           fi
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "artifact_path=$(pwd)/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=${{ runner.temp }}/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
@@ -151,8 +156,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -173,11 +177,9 @@ jobs:
           VERSION="${{ needs.resolve.outputs.version }}"
           ARTIFACT_NAME="kryth-browser-extension-v${VERSION}.zip"
           cd apps/extension
-          # wxt zip produces chrome-mv3.zip; rename to our convention
-          ls -la dist/chrome-mv3.zip 2>/dev/null || ls -la dist/*.zip 2>/dev/null || true
-          cp dist/chrome-mv3.zip "../${ARTIFACT_NAME}" 2>/dev/null || cp dist/*.zip "../${ARTIFACT_NAME}"
+          cp dist/chrome-mv3.zip "../${ARTIFACT_NAME}"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "artifact_path=$(pwd)/../${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=${{ runner.temp }}/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
@@ -226,7 +228,7 @@ jobs:
             sha256sum "$f" | awk '{print $1"  *"$2}'
           done > checksums.txt
           cat checksums.txt
-          echo "checksums_path=$(pwd)/checksums.txt" >> "$GITHUB_OUTPUT"
+          echo "checksums_path=${{ runner.temp }}/checksums.txt" >> "$GITHUB_OUTPUT"
 
       - name: Generate version.json manifest
         id: manifest
@@ -238,7 +240,6 @@ jobs:
           TAG="cli-v${VERSION}"
           cd dist
 
-          # Build the assets object from the downloaded files
           python3 - <<'PY'
           import json, hashlib, os, sys
           version = "${VERSION}"
@@ -260,12 +261,10 @@ jobs:
           cli_dir = os.path.join("cli")
           ext_dir = os.path.join("extension")
 
-          # Map CLI artifacts
           for fname in sorted(os.listdir(cli_dir)):
             fpath = os.path.join(cli_dir, fname)
             if not os.path.isfile(fpath):
                 continue
-            # Parse target triple from filename: bsk-v<VERSION>-<triple>.zip or .tar.gz
             prefix = f"bsk-v{version}-"
             suffix_zip = ".zip"
             suffix_tar = ".tar.gz"
@@ -282,7 +281,6 @@ jobs:
                     "sha256": sha,
                 }
 
-          # Map extension artifact
           for fname in sorted(os.listdir(ext_dir)):
             fpath = os.path.join(ext_dir, fname)
             if not os.path.isfile(fpath):
@@ -312,7 +310,7 @@ jobs:
           print(json.dumps(manifest, indent=2))
           PY
 
-          echo "manifest_path=$(pwd)/version.json" >> "$GITHUB_OUTPUT"
+          echo "manifest_path=${{ runner.temp }}/version.json" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         id: create_release
@@ -347,7 +345,6 @@ jobs:
           Verify each downloaded artifact against checksums.txt before installation.
           EOF
           )
-          # Escape newlines for the gh CLI
           RELEASE_NOTES_ESCAPED=$(printf '%s' "$RELEASE_NOTES" | awk '{printf "%s\\n", $0}')
 
           gh release create "${TAG}" \

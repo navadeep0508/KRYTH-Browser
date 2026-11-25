@@ -1,0 +1,237 @@
+// `tool.evaluate` — runs an arbitrary JS expression in the target tab
+// via CDP `Runtime.evaluate`. Design §4 / §7 + plan M9.1.
+//
+// Sandbox: the call resolves the target tab the same way write tools
+// do (`resolveTargetTab` + `enforceAgentWindow`), so borrowed tabs
+// already moved into the Agent Window are allowed but tabs in a user
+// window are refused with `permission_denied`. The check matches the
+// design-doc red-line that `evaluate` must not be useful as a
+// token-exfil window against arbitrary user tabs (design §6).
+//
+// Page checks live in the shared-control layer, not here. `unverified`
+// asks that layer to compare nothing about the page before dispatch; the
+// result then carries `verified: false` so the receipt cannot be read as
+// a checked action.
+//
+// Errors:
+// * RPC-level (`not_found / invalid_params / permission_denied /
+//   cancelled / cdp_failed`) — returned as `RpcError`.
+// * JS exceptions thrown by the evaluated expression — returned as
+//   `EvaluateResult { ok: false, error: { text, line?, column? } }`
+//   so the agent can read the throw text in-band (M9 review intent).
+
+import { readTimeoutDetails } from "@/browser-driver/command-deadline";
+import type { SessionManager } from "@/session-manager/manager";
+import type { EvaluateError, EvaluateParams, EvaluateResult, RpcError } from "@/transport/types";
+import { attachDialogs, markDialogCursor } from "./dialogs";
+import {
+  type CdpRunner,
+  type ChromeTabsApi,
+  enforceAgentWindow,
+  isRpcError,
+  lookupSession,
+  resolveTargetTab,
+  toRootFrameHandle,
+  withRemoteObject,
+} from "./shared";
+import { isAbortError } from "./vom/capture-abort";
+
+export interface EvaluateDeps {
+  cdp: CdpRunner;
+  tabsApi: ChromeTabsApi;
+  signal?: AbortSignal;
+}
+
+interface CdpRemoteObject {
+  type?: string;
+  subtype?: string;
+  className?: string;
+  objectId?: string;
+  value?: unknown;
+  unserializableValue?: string;
+  description?: string;
+}
+
+interface CdpExceptionDetails {
+  text?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  exception?: CdpRemoteObject;
+}
+
+interface RuntimeEvaluateReply {
+  result?: CdpRemoteObject;
+  exceptionDetails?: CdpExceptionDetails;
+}
+
+function cancelledBeforeDispatch(): RpcError {
+  return {
+    code: "cancelled",
+    message: "evaluate cancelled before dispatch",
+    data: {
+      reason: "cancelled_before_dispatch",
+      dispatched: false,
+      effect_state: "none",
+      phase: "precondition",
+    },
+  };
+}
+
+function cancelledAfterDispatch(tabId: number): RpcError {
+  return {
+    code: "cancelled",
+    message: "evaluate cancelled after dispatch; page effects may have occurred",
+    data: {
+      effect_state: "unknown",
+      phase: "execution",
+      tab_id: tabId,
+    },
+  };
+}
+
+/**
+ * Pull a human-readable error text out of CDP's exception payload.
+ * Prefers `exception.description` (the full stack), then a thrown
+ * primitive's value, before falling back to the generic short header.
+ */
+function extractErrorText(details: CdpExceptionDetails): string {
+  const desc = details.exception?.description?.trim();
+  if (desc) return desc;
+  if (details.exception?.value !== undefined) {
+    return `Uncaught ${String(details.exception.value)}`;
+  }
+  const text = details.text?.trim();
+  if (text) return text;
+  return "Uncaught (unknown error)";
+}
+
+function buildEvaluateError(details: CdpExceptionDetails): EvaluateError {
+  return {
+    text: extractErrorText(details),
+    line: typeof details.lineNumber === "number" ? details.lineNumber + 1 : undefined,
+    column: typeof details.columnNumber === "number" ? details.columnNumber : undefined,
+  };
+}
+
+/**
+ * Map a CDP `RemoteObject` to a JSON-safe value for the wire result.
+ *
+ * * `unserializableValue` — `Infinity`, `-Infinity`, `NaN`, BigInt
+ *   literals — round-trips as a string so the JSON payload stays
+ *   self-describing.
+ * * `value` is whatever CDP put back when `returnByValue=true`.
+ * * Plain `undefined` (e.g. `void 0`, statements) returns `null` so
+ *   the wire shape stays "missing means missing".
+ */
+function extractValue(remote: CdpRemoteObject | undefined): unknown {
+  if (!remote) return null;
+  if (remote.unserializableValue !== undefined) {
+    return remote.unserializableValue;
+  }
+  if ("value" in remote) {
+    return remote.value;
+  }
+  const descriptor: Record<string, string> = {};
+  for (const key of ["type", "subtype", "className", "objectId", "description"] as const) {
+    const value = remote[key];
+    if (typeof value === "string") {
+      descriptor[key] = value;
+    }
+  }
+  if (Object.keys(descriptor).length > 0 && (remote.objectId || remote.description)) {
+    return descriptor;
+  }
+  return null;
+}
+
+export async function handleEvaluate(
+  manager: SessionManager,
+  params: EvaluateParams,
+  deps: EvaluateDeps,
+): Promise<EvaluateResult | RpcError> {
+  if (!params || typeof params.expression !== "string" || params.expression.length === 0) {
+    return { code: "invalid_params", message: "evaluate requires a non-empty expression" };
+  }
+  if (params.unverified !== undefined && typeof params.unverified !== "boolean") {
+    return { code: "invalid_params", message: "unverified must be a boolean" };
+  }
+  const ctxOrErr = lookupSession(manager, params, "evaluate");
+  if (isRpcError(ctxOrErr)) return ctxOrErr;
+  const ctx = ctxOrErr;
+  if (deps.signal?.aborted) return cancelledBeforeDispatch();
+  const target = await resolveTargetTab(manager, ctx, params.tab_id, deps.tabsApi);
+  if (isRpcError(target)) return target;
+  const denied = enforceAgentWindow(ctx, target, "evaluate");
+  if (denied) return denied;
+  if (deps.signal?.aborted) return cancelledBeforeDispatch();
+  const dialogCursor = markDialogCursor(deps.cdp, target.tabId);
+  deps.cdp.trackSessionTab(ctx.sessionId, target.tabId);
+  let dispatched = false;
+  try {
+    await deps.cdp.beginDomMutation?.();
+    if (deps.signal?.aborted) return cancelledBeforeDispatch();
+    const reply = await deps.cdp.sendToFrame<RuntimeEvaluateReply>(
+      toRootFrameHandle(target.tabId),
+      "Runtime.evaluate",
+      {
+        expression: params.expression,
+        awaitPromise: params.await_promise ?? true,
+        returnByValue: params.return_by_value ?? true,
+        throwOnSideEffect: false,
+      },
+      {
+        signal: deps.signal,
+        onDispatch: () => {
+          dispatched = true;
+        },
+      },
+    );
+    const releaseAndFormat = async (): Promise<EvaluateResult | RpcError> => {
+      if (deps.signal?.aborted) return cancelledAfterDispatch(target.tabId);
+      // The receipt says so when nothing about the page was verified.
+      const unverified = params.unverified === true ? { verified: false as const } : {};
+      if (reply.exceptionDetails) {
+        return attachDialogs(deps.cdp, target.tabId, dialogCursor, {
+          ok: false,
+          tab_id: target.tabId,
+          error: buildEvaluateError(reply.exceptionDetails),
+          ...unverified,
+        });
+      }
+      return attachDialogs(deps.cdp, target.tabId, dialogCursor, {
+        ok: true,
+        tab_id: target.tabId,
+        value: extractValue(reply.result),
+        ...unverified,
+      });
+    };
+    const objectIds = [
+      ...new Set(
+        [reply.result?.objectId, reply.exceptionDetails?.exception?.objectId].filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        ),
+      ),
+    ];
+    let run = releaseAndFormat;
+    for (const objectId of objectIds) {
+      const next = run;
+      run = () => withRemoteObject(deps.cdp, target.tabId, objectId, next);
+    }
+    return await run();
+  } catch (err) {
+    if (deps.signal?.aborted || isAbortError(err)) {
+      return dispatched ? cancelledAfterDispatch(target.tabId) : cancelledBeforeDispatch();
+    }
+    const timeoutData = readTimeoutDetails(err).data;
+    return {
+      code: "cdp_failed",
+      message: err instanceof Error ? err.message : String(err),
+      data: {
+        effect_state: dispatched ? "unknown" : "none",
+        phase: dispatched ? "execution" : "precondition",
+        ...(dispatched ? { tab_id: target.tabId } : { dispatched: false }),
+        ...timeoutData,
+      },
+    };
+  }
+}

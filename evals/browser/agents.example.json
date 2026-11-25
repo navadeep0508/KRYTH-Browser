@@ -1,0 +1,17 @@
+{
+  "agents": {
+    "codex-local": {
+      "variant": "mcp-domain",
+      "command": "codex",
+      "args": ["exec", "{prompt}"],
+      "cwd": "../..",
+      "timeoutMs": 300000,
+      "metadata": {
+        "toolCount": 7
+      },
+      "metrics": {
+        "toolCallPattern": "bsk_[a-z_]+"
+      }
+    }
+  }
+}

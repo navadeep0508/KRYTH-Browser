@@ -1,0 +1,525 @@
+//! `bsk daemon …` subcommand surface.
+
+use std::{net::IpAddr, path::PathBuf, time::Duration};
+
+use clap::Subcommand;
+
+use crate::daemon;
+
+/// Default WebSocket port the daemon listens on.
+pub const DEFAULT_WS_PORT: u16 = bsk_protocol::DEFAULT_DAEMON_PORT;
+/// Default daemon idle timeout (10 minutes per design §3.2).
+pub const DEFAULT_DAEMON_IDLE: Duration = Duration::from_secs(10 * 60);
+/// Default session idle timeout (5 minutes per design §5).
+pub const DEFAULT_SESSION_IDLE: Duration = Duration::from_secs(5 * 60);
+/// Environment variable configuring the session idle timeout.
+pub const SESSION_IDLE_ENV: &str = "BSK_SESSION_IDLE";
+/// Environment variable configuring the local daemon idle timeout.
+pub const DAEMON_IDLE_ENV: &str = "BSK_DAEMON_IDLE";
+
+#[derive(Debug, Subcommand)]
+pub enum DaemonCmd {
+    /// Start the daemon (server mode stays in the foreground).
+    Start(StartArgs),
+
+    /// Stop a running daemon by reading `~/.bsk/daemon.json`.
+    Stop,
+
+    /// Stop then start the daemon.
+    Restart(StartArgs),
+
+    /// Generate a local pairing link (or a remote link in server mode).
+    Pair {
+        /// Replace this local browser/device after successful activation.
+        #[arg(long, allow_hyphen_values = true, value_parser = parse_device_id)]
+        replace: Option<String>,
+    },
+
+    /// List local and remote devices (no credentials are displayed).
+    Devices,
+
+    /// Revoke a device grant, or all grants and outstanding pairing links.
+    Revoke {
+        #[arg(
+            required_unless_present = "all",
+            conflicts_with = "all",
+            allow_hyphen_values = true,
+            value_parser = parse_device_id
+        )]
+        device_id: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// Rotate a local device key on its next connection.
+    Rotate {
+        #[arg(allow_hyphen_values = true, value_parser = parse_device_id)]
+        device_id: String,
+    },
+    /// Explicitly allow or stop allowing unverified local connections.
+    TrustLocal {
+        #[arg(value_enum)]
+        setting: TrustSetting,
+    },
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum TrustSetting {
+    On,
+    Off,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum DaemonMode {
+    #[default]
+    Local,
+    Server,
+}
+
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct StartArgs {
+    /// Server mode exposes an authenticated extension endpoint and stays in the foreground.
+    #[arg(long, value_enum, default_value_t)]
+    pub mode: DaemonMode,
+
+    /// Server listener IP. Defaults to loopback; non-loopback requires TLS.
+    #[arg(long)]
+    pub listen: Option<IpAddr>,
+    /// Public WebSocket URL, including its path, used in pairing links.
+    #[arg(long)]
+    pub public_url: Option<String>,
+    #[arg(long, requires = "tls_key")]
+    pub tls_cert: Option<PathBuf>,
+    #[arg(long, requires = "tls_cert")]
+    pub tls_key: Option<PathBuf>,
+    /// One-use pairing lifetime, default 5m (maximum 1h).
+    #[arg(long, value_parser = parse_duration)]
+    pub pairing_ttl: Option<Duration>,
+    /// Renewable device grant lifetime, default 90d.
+    #[arg(long, value_parser = parse_duration)]
+    pub device_ttl: Option<Duration>,
+    /// Renew device grants after this interval, default 30d.
+    #[arg(long, value_parser = parse_duration)]
+    pub renew_after: Option<Duration>,
+    /// Maximum online remote browsers, default 64. Pairing and renewal use separate capacity.
+    #[arg(long)]
+    pub max_connections: Option<usize>,
+    /// Authorization requests per minute per peer IP, default 60 (shared behind a proxy).
+    #[arg(long)]
+    pub authorize_rate_limit: Option<u32>,
+    /// Override the WebSocket port (default 52800).
+    #[arg(long, value_name = "PORT")]
+    pub port: Option<u16>,
+
+    /// Run in the foreground, owned by the current terminal or supervisor.
+    #[arg(long)]
+    pub foreground: bool,
+
+    /// Session idle timeout, e.g. `5m`, `30s`. Default 5 minutes. Configurable via `BSK_SESSION_IDLE`.
+    #[arg(long, value_name = "DURATION", value_parser = parse_duration)]
+    pub session_idle: Option<Duration>,
+
+    /// Daemon idle timeout, e.g. `10m`, `2s`. Default 10 minutes. Configurable via `BSK_DAEMON_IDLE`.
+    #[arg(long, value_name = "DURATION", value_parser = parse_duration)]
+    pub daemon_idle: Option<Duration>,
+}
+
+impl StartArgs {
+    pub fn server_config(&self) -> anyhow::Result<Option<daemon::remote::ServerConfig>> {
+        if self.mode == DaemonMode::Local {
+            anyhow::ensure!(
+                self.listen.is_none()
+                    && self.public_url.is_none()
+                    && self.tls_cert.is_none()
+                    && self.tls_key.is_none()
+                    && self.pairing_ttl.is_none()
+                    && self.device_ttl.is_none()
+                    && self.renew_after.is_none()
+                    && self.max_connections.is_none()
+                    && self.authorize_rate_limit.is_none(),
+                "remote endpoint flags require --mode server"
+            );
+            return Ok(None);
+        }
+        anyhow::ensure!(
+            self.daemon_idle.is_none(),
+            "server mode stays running; omit --daemon-idle"
+        );
+        let url = self
+            .public_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("server mode requires --public-url"))?;
+        let config = daemon::remote::ServerConfig {
+            listen: self.listen.unwrap_or_else(|| "127.0.0.1".parse().unwrap()),
+            public_url: daemon::remote::validate_endpoint(url)?.to_string(),
+            tls_cert: self.tls_cert.clone(),
+            tls_key: self.tls_key.clone(),
+            pairing_ttl: self.pairing_ttl.unwrap_or(Duration::from_secs(300)),
+            device_ttl: self.device_ttl.unwrap_or(Duration::from_secs(90 * 86400)),
+            renew_after: self.renew_after.unwrap_or(Duration::from_secs(30 * 86400)),
+            max_connections: self.max_connections.unwrap_or(64),
+            authorize_rate_limit: self.authorize_rate_limit.unwrap_or(60),
+        };
+        config.validate()?;
+        Ok(Some(config))
+    }
+    pub fn resolved_port(&self) -> u16 {
+        self.port.unwrap_or(DEFAULT_WS_PORT)
+    }
+
+    pub fn resolved_session_idle(&self) -> Duration {
+        self.session_idle.unwrap_or(DEFAULT_SESSION_IDLE)
+    }
+
+    pub fn resolved_daemon_idle(&self) -> Duration {
+        self.daemon_idle.unwrap_or(DEFAULT_DAEMON_IDLE)
+    }
+
+    /// Return a copy with unset idle timeouts populated from
+    /// [`SESSION_IDLE_ENV`] and (in local mode) [`DAEMON_IDLE_ENV`].
+    ///
+    /// Explicit CLI flags always take precedence, and empty/whitespace-only
+    /// environment values are treated as unset. Non-empty malformed values
+    /// return an error before starting or stopping a daemon.
+    pub fn with_env_idle(&self) -> anyhow::Result<Self> {
+        self.with_env_idle_from(
+            std::env::var(SESSION_IDLE_ENV).ok().as_deref(),
+            std::env::var(DAEMON_IDLE_ENV).ok().as_deref(),
+        )
+    }
+
+    pub fn with_env_idle_from(
+        &self,
+        session_env: Option<&str>,
+        daemon_env: Option<&str>,
+    ) -> anyhow::Result<Self> {
+        let mut next = self.clone();
+        if next.session_idle.is_none() {
+            next.session_idle = parse_env_idle(SESSION_IDLE_ENV, session_env)?;
+        }
+        if next.mode == DaemonMode::Local && next.daemon_idle.is_none() {
+            next.daemon_idle = parse_env_idle(DAEMON_IDLE_ENV, daemon_env)?;
+        }
+        Ok(next)
+    }
+}
+
+fn parse_env_idle(var_name: &str, raw: Option<&str>) -> anyhow::Result<Option<Duration>> {
+    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    parse_duration(raw)
+        .map(Some)
+        .map_err(|e| anyhow::anyhow!("invalid {var_name}: {e}"))
+}
+
+/// Parse short human durations (`5s`, `30m`, `2h`, `750ms`).
+pub fn parse_duration(s: &str) -> Result<Duration, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("empty duration".to_string());
+    }
+
+    let split = s.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(s.len());
+    let (num_part, unit_part) = s.split_at(split);
+    let num: u64 = num_part
+        .parse()
+        .map_err(|e| format!("invalid number `{num_part}`: {e}"))?;
+    if unit_part == "ms" {
+        return Ok(Duration::from_millis(num));
+    }
+    let multiplier = match unit_part {
+        "" | "s" => 1,
+        "m" => 60,
+        "h" => 3600,
+        "d" => 86400,
+        other => return Err(format!("unknown duration unit `{other}`")),
+    };
+    num.checked_mul(multiplier)
+        .map(Duration::from_secs)
+        .ok_or_else(|| "duration is too large".into())
+}
+
+pub fn dispatch(cmd: DaemonCmd) -> anyhow::Result<()> {
+    match cmd {
+        DaemonCmd::Start(args) => daemon::start::run_start(args),
+        DaemonCmd::Stop => daemon::start::run_stop(),
+        DaemonCmd::Restart(args) => {
+            args.server_config()?;
+            args.with_env_idle()?;
+            daemon::start::run_stop().map_err(|e| e.context("restart failed during stop phase"))?;
+            daemon::start::run_start(args)
+        }
+        DaemonCmd::Pair { replace } => {
+            super::ensure_daemon::ensure_daemon()?;
+            let value = maintain(
+                bsk_protocol::Method::LocalAuthPair,
+                serde_json::json!({"replace":replace}),
+            )?;
+            println!(
+                "{}",
+                value["link"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("invalid pairing reply"))?
+            );
+            Ok(())
+        }
+        DaemonCmd::Devices => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&maintain(
+                    bsk_protocol::Method::LocalAuthDevices,
+                    serde_json::json!({})
+                )?)?
+            );
+            Ok(())
+        }
+        DaemonCmd::Revoke { device_id, all } => {
+            maintain(
+                bsk_protocol::Method::LocalAuthRevoke,
+                serde_json::json!({"device_id":device_id,"all":all}),
+            )?;
+            println!("Authorization revoked");
+            Ok(())
+        }
+        DaemonCmd::Rotate { device_id } => {
+            maintain(
+                bsk_protocol::Method::LocalAuthRotate,
+                serde_json::json!({"device_id":device_id}),
+            )?;
+            println!("Key rotation scheduled for the next connection");
+            Ok(())
+        }
+        DaemonCmd::TrustLocal { setting } => {
+            use daemon::local_auth::LocalAuthMode;
+            let mode = match setting {
+                TrustSetting::On => LocalAuthMode::TrustLocal,
+                TrustSetting::Off => LocalAuthMode::Required,
+            };
+            maintain(
+                bsk_protocol::Method::LocalAuthSetMode,
+                serde_json::json!({"mode":mode}),
+            )?;
+            match setting {
+                TrustSetting::On => println!(
+                    "Warning: unverified local connections are allowed. Enable skipping in the extension separately."
+                ),
+                TrustSetting::Off => println!("Local pairing verification is required"),
+            }
+            Ok(())
+        }
+    }
+}
+
+fn maintain(
+    method: bsk_protocol::Method,
+    params: serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let home = daemon::paths::ensure_bsk_home()?;
+    match daemon::lockfile::acquire() {
+        Ok(lock) => {
+            let local = daemon::local_auth::LocalAuth::open(&lock)?;
+            daemon::local_auth::maintenance::execute(
+                &local,
+                &home,
+                DEFAULT_WS_PORT,
+                false,
+                method,
+                params,
+            )
+        }
+        Err(error) if error.is::<daemon::lockfile::AlreadyLocked>() => {
+            // Once another process owns the lifecycle lock, never touch files
+            // offline, even if IPC is not ready yet or the request fails.
+            tracing::debug!("daemon maintenance waiting for IPC after lifecycle lock contention");
+            let running = daemon::probe::wait_for_ready(Duration::from_secs(10))?;
+            let path = running.info.sock_path.clone();
+            let legacy_possible = running.status.local_auth.is_none();
+            drop(running);
+            let reply = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(async {
+                    let mut client = crate::ipc_client::Client::connect_path(path).await?;
+                    // Older decoders reply with id 0 when they cannot deserialize
+                    // the new method. This connection carries just one request.
+                    client
+                        .call_with_id("0".into(), method.clone(), &params, Duration::from_secs(10))
+                        .await
+                })?;
+            match reply {
+                Ok(value) => Ok(value),
+                Err(error)
+                    if legacy_possible
+                        && error.code == bsk_protocol::ErrorCode::ProtocolError
+                        && error
+                            .message
+                            .starts_with("invalid frame: unknown variant `local_auth.") =>
+                {
+                    daemon::local_auth::maintenance::execute_legacy_remote(&home, method, params)
+                }
+                Err(error) => Err(anyhow::anyhow!(
+                    "{}; if the daemon is older, run `bsk update` and restart it",
+                    error.message
+                )),
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn parse_device_id(value: &str) -> Result<String, String> {
+    if value.trim().is_empty() {
+        return Err("device ID must not be empty".into());
+    }
+    if value.starts_with('-') && bsk_protocol::local_auth::Bytes::<16>::decode(value).is_err() {
+        return Err(format!("unexpected flag or invalid device ID '{value}'"));
+    }
+    Ok(value.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_duration_seconds_default() {
+        assert_eq!(parse_duration("5").unwrap(), Duration::from_secs(5));
+        assert_eq!(parse_duration("30s").unwrap(), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn parse_duration_units() {
+        assert_eq!(parse_duration("750ms").unwrap(), Duration::from_millis(750));
+        assert_eq!(parse_duration("2m").unwrap(), Duration::from_secs(120));
+        assert_eq!(parse_duration("1h").unwrap(), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn server_configuration_has_safe_defaults_and_rejects_unsafe_flags() {
+        assert!(StartArgs::default().server_config().unwrap().is_none());
+        let mut args = StartArgs {
+            mode: DaemonMode::Server,
+            public_url: Some("wss://browser.example/extension".into()),
+            ..Default::default()
+        };
+        let config = args.server_config().unwrap().unwrap();
+        assert!(config.listen.is_loopback());
+        assert_eq!(config.pairing_ttl, Duration::from_secs(300));
+        assert_eq!(config.device_ttl, Duration::from_secs(90 * 86400));
+        assert_eq!(config.max_connections, 64);
+        assert_eq!(config.authorize_rate_limit, 60);
+        args.listen = Some("0.0.0.0".parse().unwrap());
+        assert!(args.server_config().is_err());
+        args.tls_cert = Some("cert.pem".into());
+        args.tls_key = Some("key.pem".into());
+        assert!(args.server_config().is_ok());
+        args.mode = DaemonMode::Local;
+        assert!(args.server_config().is_err());
+        for url in [
+            "ws://browser.example/extension",
+            "wss://user:password@browser.example/extension",
+            "wss://browser.example/extension?token=abc",
+            "wss://browser.example/extension#abc",
+        ] {
+            assert!(daemon::remote::validate_endpoint(url).is_err());
+        }
+        args = StartArgs {
+            mode: DaemonMode::Server,
+            public_url: Some(format!("{}/extension", bsk_protocol::DEFAULT_DAEMON_WS_URL)),
+            ..Default::default()
+        };
+        args.renew_after = Some(Duration::from_secs(90 * 86400));
+        assert!(args.server_config().is_err());
+        args.renew_after = None;
+        args.pairing_ttl = Some(Duration::from_millis(1500));
+        assert!(args.server_config().is_err());
+        assert!(parse_duration("18446744073709551615d").is_err());
+    }
+
+    #[test]
+    fn server_resource_limits_are_bounded_and_server_only() {
+        let mut args = StartArgs {
+            mode: DaemonMode::Server,
+            public_url: Some("wss://browser.example/extension".into()),
+            ..Default::default()
+        };
+        for limit in [0, 1001] {
+            args.max_connections = Some(limit);
+            assert!(args.server_config().is_err());
+        }
+        args.max_connections = Some(128);
+        for limit in [0, 60_001] {
+            args.authorize_rate_limit = Some(limit);
+            assert!(args.server_config().is_err());
+        }
+        args.authorize_rate_limit = Some(600);
+        let config = args.server_config().unwrap().unwrap();
+        assert_eq!(config.max_connections, 128);
+        assert_eq!(config.authorize_rate_limit, 600);
+        args.mode = DaemonMode::Local;
+        assert!(args.server_config().is_err());
+    }
+
+    #[test]
+    fn parse_duration_rejects_bad_unit() {
+        assert!(parse_duration("10x").is_err());
+        assert!(parse_duration("").is_err());
+    }
+
+    #[test]
+    fn with_env_idle_resolves_unset_fields_and_preserves_cli_precedence() {
+        let resolved = StartArgs::default()
+            .with_env_idle_from(Some("15m"), Some("45m"))
+            .unwrap();
+        assert_eq!(resolved.session_idle, Some(Duration::from_secs(15 * 60)));
+        assert_eq!(resolved.daemon_idle, Some(Duration::from_secs(45 * 60)));
+        assert_eq!(
+            resolved.resolved_session_idle(),
+            Duration::from_secs(15 * 60)
+        );
+        assert_eq!(
+            resolved.resolved_daemon_idle(),
+            Duration::from_secs(45 * 60)
+        );
+
+        let explicit = StartArgs {
+            session_idle: Some(Duration::from_secs(120)),
+            daemon_idle: Some(Duration::from_secs(300)),
+            ..Default::default()
+        }
+        .with_env_idle_from(Some("invalid"), Some("invalid"))
+        .unwrap();
+        assert_eq!(explicit.session_idle, Some(Duration::from_secs(120)));
+        assert_eq!(explicit.daemon_idle, Some(Duration::from_secs(300)));
+
+        let blank = StartArgs::default()
+            .with_env_idle_from(Some("   "), Some(""))
+            .unwrap();
+        assert!(blank.session_idle.is_none());
+        assert!(blank.daemon_idle.is_none());
+    }
+
+    #[test]
+    fn with_env_idle_rejects_malformed_values_and_ignores_daemon_idle_in_server_mode() {
+        let err = StartArgs::default()
+            .with_env_idle_from(Some("bogus"), None)
+            .unwrap_err();
+        assert!(err.to_string().contains("invalid BSK_SESSION_IDLE"));
+
+        let err = StartArgs::default()
+            .with_env_idle_from(None, Some("10weeks"))
+            .unwrap_err();
+        assert!(err.to_string().contains("invalid BSK_DAEMON_IDLE"));
+
+        let server = StartArgs {
+            mode: DaemonMode::Server,
+            public_url: Some("wss://browser.example/extension".into()),
+            ..Default::default()
+        }
+        .with_env_idle_from(Some("20m"), Some("40m"))
+        .unwrap();
+        assert_eq!(server.session_idle, Some(Duration::from_secs(20 * 60)));
+        assert!(server.daemon_idle.is_none());
+        assert!(server.server_config().unwrap().is_some());
+    }
+}

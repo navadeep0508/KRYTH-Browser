@@ -1,0 +1,97 @@
+﻿{
+  "$schema": "../../schemas/case.schema.json",
+  "schemaVersion": 1,
+  "id": "form-controls",
+  "title": "Form, select, keyboard, and screenshot",
+  "order": 20,
+  "suite": "core",
+  "tags": ["form", "keyboard", "screenshot", "select"],
+  "fixture": { "startPath": "/form" },
+  "prompts": {
+    "en": "Open {url}. Fill Text input with \"agent-parity\" and Textarea with \"Browser Agent works\". Select the visible option \"Two\" from Dropdown. Capture a screenshot of the form, focus Submit, and press Enter to submit. Confirm that the result says \"Received!\", then close the browser session.",
+    "zh-CN": "æ‰“å¼€ {url}ã€‚æŠŠ Text input å¡«æˆâ€œagent-parityâ€ï¼ŒTextarea å¡«æˆâ€œBrowser Agent worksâ€ï¼ŒDropdown é€‰æ‹©å¯è§é€‰é¡¹â€œTwoâ€ã€‚æˆªå–è¡¨å•æˆªå›¾ï¼Œç„¶åŽèšç„¦ Submit å¹¶æŒ‰ Enter æäº¤ã€‚ç¡®è®¤ç»“æžœé¡µå‡ºçŽ°â€œReceived!â€ï¼Œæœ€åŽå…³é—­æµè§ˆå™¨ä¼šè¯ã€‚"
+  },
+  "coverage": [
+    "session.start",
+    "session.stop",
+    "page.navigate",
+    "interact.fill",
+    "interact.select",
+    "interact.press",
+    "inspect.screenshot"
+  ],
+  "assertions": {
+    "site": [
+      {
+        "label": "Enter was pressed on Submit",
+        "type": "form.enter_pressed",
+        "minCount": 1
+      },
+      {
+        "label": "form values were submitted",
+        "type": "form.submitted",
+        "where": {
+          "data.text": "agent-parity",
+          "data.notes": "Browser Agent works",
+          "data.choice": "two"
+        },
+        "minCount": 1
+      },
+      {
+        "label": "result page was displayed",
+        "type": "page.shown",
+        "where": { "data.path": "/result" },
+        "minCount": 1
+      }
+    ],
+    "response": [{ "label": "confirmed result", "includes": "Received!" }],
+    "adapter": [
+      { "label": "screenshot artifact was created", "key": "screenshotCreated" },
+      { "label": "browser session was closed", "key": "sessionStopped" }
+    ]
+  },
+  "smoke": {
+    "steps": [
+      { "action": "navigate" },
+      { "action": "sync", "saveAs": "control" },
+      {
+        "action": "fill",
+        "contextId": "{control.context_id}",
+        "selector": "#text-input",
+        "value": "agent-parity"
+      },
+      {
+        "action": "fill",
+        "contextId": "{control.context_id}",
+        "selector": "#notes",
+        "value": "Browser Agent works"
+      },
+      {
+        "action": "select",
+        "selector": "#choice",
+        "values": ["two"],
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "screenshot",
+        "artifactName": "form.png",
+        "evidence": "screenshotCreated"
+      },
+      {
+        "action": "press",
+        "key": "Enter",
+        "selector": "#submit",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "wait-site-event",
+        "type": "page.shown",
+        "where": { "path": "/result" }
+      },
+      { "action": "wait", "duration": "200ms" },
+      { "action": "sync", "saveAs": "control" },
+      { "action": "observe" }
+    ]
+  }
+}
+

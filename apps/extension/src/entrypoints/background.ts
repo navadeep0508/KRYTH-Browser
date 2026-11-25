@@ -1,0 +1,982 @@
+﻿import { i18n } from "@browser-agent/i18n";
+import { ChromiumCdp } from "@/browser-driver/chromium-cdp";
+import { attachCooperation } from "@/cooperation/browser-bridge";
+import { LocalDebugArchive } from "@/debug/archive";
+import { attachDebugBridge } from "@/debug/bridge";
+import { DebugManager } from "@/debug/manager";
+import { getAuditEnabled } from "@/lib/audit";
+import { attachAuditBridge } from "@/lib/audit-bridge";
+import { ConnectionController } from "@/lib/connection-controller";
+import { watchDaemonConnection } from "@/lib/daemon-connection-preference";
+import { attachDaemonUpgradeNotice } from "@/lib/daemon-upgrade-notice";
+import { startHeartbeat } from "@/lib/heartbeat";
+import {
+  getConnectionEnabled,
+  getOrCreateInstanceId,
+  setConnectionEnabled as persistConnectionEnabled,
+  setLabel,
+} from "@/lib/instance-id";
+import { interactionPolicy, interactionPreferences } from "@/lib/interaction-preferences";
+import { startKeepalive } from "@/lib/keepalive";
+import { attachLocalPairing } from "@/lib/local-pairing-bridge";
+import {
+  OVERLAY_AGENT_STATE,
+  OVERLAY_AUTOMATION_BYPASS,
+  OVERLAY_MSG_INTERRUPT,
+  OVERLAY_MSG_READY,
+  OVERLAY_MSG_SET_MINIMIZED,
+  OVERLAY_MSG_WHO_AM_I,
+  type OverlayAgentStateMessage,
+  type OverlayInterruptRequest,
+  type OverlayInterruptResponse,
+  type OverlayMessage,
+  type OverlayMode,
+} from "@/lib/overlay-bridge";
+import { nextOverlayVersion } from "@/lib/overlay-version";
+import { POPUP_PORT_NAME, type PopupInbound, type PopupOutbound, type TabOwnershipInfo } from "@/lib/popup-bridge";
+import { recordFrameCoordinator } from "@/lib/recording/frame-coordinator";
+import {
+  ensureOverlayInjected,
+  forgetOverlayInjectedTab,
+  injectCooperationAllFrames,
+  RuntimeContentScriptCoordinator,
+  sendTabMessageBounded,
+} from "@/lib/runtime-content-scripts";
+import { captureTaskPreview, focusTask } from "@/lib/task-preview";
+import { attachUiChannel } from "@/lib/ui-channel";
+import { attachLongScreenshot } from "@/long-screenshot/background";
+import { createDisconnectCleanup } from "@/session-manager/disconnect-cleanup";
+import { attachSessionEventHandler } from "@/session-manager/event-handler";
+import {
+  isAgentControlledTab,
+  type SessionContext,
+  SessionManager,
+} from "@/session-manager/manager";
+import { RefStore } from "@/session-manager/ref-store";
+import { AgentWindowRouting } from "@/session-manager/window-routing";
+import {
+  attachBorrowNotificationButtonHandler,
+  attachBorrowNotificationClickHandler,
+  type BorrowNotificationCopy,
+  defaultBorrowChromeNotifications,
+  defaultBorrowChromeWindows,
+  requestBorrowConfirmation,
+} from "@/tools/borrow-confirmation";
+import { ToolDispatcher } from "@/tools/dispatcher";
+import { clearHelpForSession, hasActiveHelp } from "@/tools/human-loop";
+import {
+  clearObserveIdentityStreaksForSession,
+  clearObserveIdentityStreaksForTab,
+} from "@/tools/observation";
+import {
+  activeRecordingCount,
+  attachRecordFinishListener,
+  attachRecordQueryListener,
+  attachRecordStepListener,
+  clearRecordingForSession,
+  hasActiveRecording,
+  type RecordRuntimeDeps,
+  subscribeActiveRecordings,
+} from "@/tools/record";
+import {
+  cdpBlockedUrlReason,
+  chromeTabsApi,
+  evictSessionCdpRunner,
+  isRpcError,
+} from "@/tools/shared";
+import { chromeTabMutationApi, returnBorrowedTab } from "@/tools/tabs";
+import { detectBrowserMeta } from "@/transport/handshake";
+import { createLocalAuthenticator } from "@/transport/local-auth";
+import { watchRemoteAuthorization } from "@/transport/remote-authorization";
+import { type RemoteEndpoint, remoteSocket } from "@/transport/remote-endpoint";
+import type { Transport } from "@/transport/transport";
+import { WSTransport } from "@/transport/ws-transport";
+import { attachVideoBridge } from "@/video/bridge";
+import { browserVideoHost } from "@/video/host";
+import { VideoManager } from "@/video/manager";
+import { VIDEO_OVERLAY } from "@/video/overlay";
+
+export default defineBackground(() => {
+  const controller = new ConnectionController();
+  let remoteEndpoint: RemoteEndpoint | null = null;
+  let connectionPreferenceValid = false;
+  let requestedConnection: { key: string; remote: boolean } | null = null;
+  const authenticateLocal = createLocalAuthenticator({
+    instanceId: () => getOrCreateInstanceId(),
+    origin: chrome.runtime.getURL("").replace(/\/$/, ""),
+    status: (status) => controller.setLocalAuth(status),
+  });
+  const transport = new WSTransport({
+    url: __BSK_DAEMON_WS_URL__,
+    onAuthenticationError: () => {
+      const state = controller.snapshot().localAuth?.state;
+      if (!remoteEndpoint && (state === "verifying" || state === "verified"))
+        controller.setLocalAuth({ state: "server_unverified" });
+    },
+    authenticate: (socket, signal) => {
+      if (remoteEndpoint) {
+        controller.setLocalAuth(null);
+        return;
+      }
+      return authenticateLocal(socket, signal);
+    },
+    webSocketFactory: (url) => {
+      if (!connectionPreferenceValid) throw new Error("Connection settings are unavailable");
+      const socket = remoteSocket(url, remoteEndpoint);
+      // Registered before the transport listens, so `ui.*` frames are answered
+      // here instead of reaching the tool dispatcher. Remote gateways only.
+      if (remoteEndpoint)
+        attachUiChannel(socket, {
+          focus: (sessionId) => focusTask(sessions, sessionId),
+          preview: (sessionId) => captureTaskPreview(sessions, cdp, sessionId),
+        });
+      return socket;
+    },
+  });
+  const sessions = new SessionManager({ remote: () => remoteEndpoint !== null });
+  // Capture the original owner before cooperation releases a detached page.
+  attachSessionEventHandler({
+    manager: sessions,
+    transport,
+    cdp: {
+      detachSession: (id) => cdp.detachSession(id),
+      releaseSessionTab: (id, tabId) => cdp.releaseSessionTab(id, tabId),
+    },
+    onSessionReleased: (ctx) => {
+      dispatcher.cancelSession(ctx.sessionId);
+      void dispatcher.releaseHoverForSession(ctx.sessionId).catch(() => {});
+      void dispatcher.releaseScreenshotExports(ctx.sessionId).catch(() => {});
+      cooperation.release(ctx.sessionId);
+      evictSessionCdpRunner(cdp, ctx.sessionId);
+      debug.releaseSession(ctx.sessionId);
+      void video.stopSession(ctx.sessionId).catch(() => {});
+      clearRecordingForSession(ctx.sessionId, recordDeps);
+      clearHelpForSession(ctx.sessionId);
+      clearObserveIdentityStreaksForSession(ctx.sessionId);
+    },
+    onSessionsChanged: onOverlaySessionStateChanged,
+  });
+  const cooperation = attachCooperation(
+    sessions,
+    (tabId) => {
+      void chrome.tabs
+        .get(tabId)
+        .then((tab) => pushOverlayStateForTab(tabId, tab.windowId))
+        .catch(() => {});
+    },
+    (sessionId, idleProtected) => {
+      try {
+        transport.send({
+          event: "session.activity",
+          payload: { session_id: sessionId, idle_protected: idleProtected },
+        });
+      } catch {
+        /* Disconnect cleanup ends the owning sessions. */
+      }
+    },
+    (details) => {
+      void ensureOverlayInjected(details.tabId, { documentId: details.documentId });
+    },
+  );
+  // Default collaboration is always present; only explicit help or recording
+  // suspends routing of unrelated tabs out of the task window.
+  const windowRouting = new AgentWindowRouting(
+    sessions,
+    chrome,
+    (id) => hasActiveHelp(id) || hasActiveRecording(id),
+  );
+  attachLongScreenshot({
+    isTabBusy: (tabId) => sessions.list().some((session) => isAgentControlledTab(session, tabId)),
+  });
+  attachAuditBridge(controller, transport);
+  const cdp = new ChromiumCdp(undefined, {
+    onDocumentChanged: (tabId) => {
+      sessions.invalidateTabRefs(tabId);
+      cooperation.invalidate(tabId);
+    },
+    onRouteChanged: (tabId, url) => {
+      cooperation.invalidateRoute(tabId, url);
+    },
+    onChildFramesInvalidated: (tabId, staleFrameIds) => {
+      sessions.invalidateTabChildFrames(tabId, staleFrameIds);
+      cooperation.invalidateChildFrames(tabId);
+    },
+    onSoftDetached: (tabId) => {
+      cooperation.markAccessibilityNeedsEnable(tabId);
+    },
+    canControlDialog: async (tabId) => {
+      const tab = await chrome.tabs.get(tabId);
+      const session = sessions.findByWindowId(tab.windowId);
+      return session !== null && isAgentControlledTab(session, tabId);
+    },
+  });
+  const debug = new DebugManager(sessions, cdp, chrome.tabs, Date.now, new LocalDebugArchive());
+  attachDebugBridge(sessions, debug);
+  const videoHost = browserVideoHost;
+  let upgradeNotice: ReturnType<typeof attachDaemonUpgradeNotice> | undefined;
+  const video = new VideoManager({
+    sessions,
+    cdp,
+    tabs: chromeTabsApi,
+    host: videoHost,
+    owner: () => requestedConnection?.key ?? "unavailable",
+    overlay: async (tabId, recordingId) => {
+      if (recordingId !== null) {
+        await ensureOverlayInjected(tabId);
+      }
+      try {
+        if (recordingId === null) {
+          await sendTabMessageBounded(
+            tabId,
+            { type: VIDEO_OVERLAY, recording_id: null },
+            undefined,
+            { frameId: 0 },
+          );
+          return {};
+        }
+        // Another content script can receive messages before the overlay script
+        // mounts, resolving undefined instead of reporting a missing receiver.
+        // The overlay stays hidden until its own video handshake completes.
+        return (
+          (await chrome.tabs.sendMessage(
+            tabId,
+            { type: VIDEO_OVERLAY, recording_id: recordingId },
+            { frameId: 0 },
+          )) ?? {}
+        );
+      } catch (error) {
+        // Error pages, downloads and PDF viewers may have no content script.
+        // A receiving script must confirm a clean paint; absent scripts have no overlay.
+        const tab = await chrome.tabs.get(tabId);
+        if (
+          !recordingId ||
+          tab.url === "about:blank" ||
+          (error instanceof Error && error.message.includes("Receiving end does not exist"))
+        )
+          return {};
+        throw error;
+      }
+    },
+    changed: () => {
+      upgradeNotice?.refresh();
+    },
+  });
+  upgradeNotice = attachDaemonUpgradeNotice({
+    controller,
+    connectionKey: () => requestedConnection?.key ?? "unavailable",
+    isRecording: () => video.isRecording(),
+  });
+  attachVideoBridge(video, videoHost, (sessionId) => handleOverlayInterrupt(transport, sessionId));
+  chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+    if (details.frameId !== 0) return;
+    if (cdpBlockedUrlReason(details.url))
+      void video.stopTab(details.tabId, "capture_failed").catch(() => {});
+    else void video.navigationStarted(details.tabId, details.timeStamp).catch(() => {});
+  });
+  chrome.webNavigation.onCompleted.addListener((details) => {
+    if (details.frameId === 0)
+      void video.navigationSettled(details.tabId, details.timeStamp).catch(() => {});
+  });
+  chrome.webNavigation.onErrorOccurred.addListener((details) => {
+    if (details.frameId === 0)
+      void video.navigationSettled(details.tabId, details.timeStamp).catch(() => {});
+  });
+  chrome.debugger.onDetach.addListener((source) => {
+    if (source.tabId !== undefined) debug.stopTab(source.tabId, "debugger_detached");
+    if (source.tabId !== undefined)
+      void video.stopTab(source.tabId, "debugger_detached").catch(() => {});
+  });
+  const runtimeScripts = new RuntimeContentScriptCoordinator({
+    liveSessions: () => sessions.list().length,
+    activeRecordings: () => activeRecordingCount() ?? 0,
+  });
+  subscribeActiveRecordings?.(() => runtimeScripts.sync());
+  const popupSnapshotRefreshers = new Set<() => void>();
+  const controlModes = new Map<string, OverlayMode>();
+  const minimizedControlSessions = new Set<string>();
+
+  attachLocalPairing(controller, transport);
+  watchRemoteAuthorization({ onAuthorized: () => transport.resetAuthenticationBackoff() });
+  const daemonPort = watchDaemonConnection(
+    (url, remote) => {
+      const key = JSON.stringify([remote ? "remote" : "local", url, remote?.deviceId ?? null]);
+      const sameRequest = requestedConnection?.key === key;
+      requestedConnection = { key, remote: remote !== null };
+      if (
+        sameRequest &&
+        connectionPreferenceValid &&
+        remote?.deviceId &&
+        remoteEndpoint?.deviceId === remote.deviceId &&
+        remoteEndpoint.url === remote.url
+      ) {
+        remoteEndpoint = remote;
+        transport.resetAuthenticationBackoff();
+        return;
+      }
+      // Connection identity is public metadata. Credential rotation updates the
+      // socket factory above without ending the current device's tasks.
+      void controller.reconfigureTransport(key, () => {
+        connectionPreferenceValid = true;
+        remoteEndpoint = remote;
+        transport.resetAuthenticationBackoff();
+        transport.setUrl(url);
+      });
+    },
+    () => {
+      console.error("[connection] invalid connection preference");
+      if (remoteEndpoint || requestedConnection?.remote) {
+        requestedConnection = null;
+        connectionPreferenceValid = false;
+        void controller.reconfigureTransport("unavailable", () => {});
+      }
+    },
+  );
+  let preferenceWrites = Promise.resolve();
+
+  function setControlMode(sessionId: string, mode: OverlayMode): void {
+    if (controlModes.get(sessionId) === mode) return;
+    controlModes.set(sessionId, mode);
+    const ctx = sessions.get(sessionId);
+    if (ctx) void pushOverlayStateForWindow(ctx.agentWindowId);
+  }
+
+  function overlayStateForWindow(windowId?: number): OverlayAgentStateMessage {
+    const ctx = typeof windowId === "number" ? sessions.findByWindowId(windowId) : null;
+    if (!ctx) {
+      return {
+        type: OVERLAY_AGENT_STATE,
+        sessionId: null,
+        mode: "hidden",
+        ...nextOverlayVersion(),
+      };
+    }
+    return {
+      type: OVERLAY_AGENT_STATE,
+      sessionId: ctx.sessionId,
+      controller: ctx.controller,
+      ...(minimizedControlSessions.has(ctx.sessionId) ? { minimized: true } : {}),
+      mode: controlModes.get(ctx.sessionId) ?? "control",
+      ...nextOverlayVersion(),
+    };
+  }
+
+  /**
+   * Authoritative overlay state for a specific tab. Agent Window tabs are
+   * free by default; only tabs explicitly claimed through session startup,
+   * `tab_create`, `tab_borrow`, or popup observation receive the control overlay.
+   */
+  function overlayStateForTab(tabId?: number, windowId?: number): OverlayAgentStateMessage {
+    if (typeof tabId === "number" && typeof windowId === "number") {
+      const ctx = sessions.findByWindowId(windowId);
+      if (ctx && isAgentControlledTab(ctx, tabId))
+        return {
+          ...overlayStateForWindow(windowId),
+          cooperation: cooperation.view(tabId),
+        };
+    }
+    return {
+      type: OVERLAY_AGENT_STATE,
+      sessionId: null,
+      mode: "hidden",
+      ...nextOverlayVersion(),
+    };
+  }
+
+  function isControlledTabInWindow(tabId?: number, windowId?: number): boolean {
+    if (typeof tabId !== "number" || typeof windowId !== "number") return false;
+    const ctx = sessions.findByWindowId(windowId);
+    return ctx !== null && isAgentControlledTab(ctx, tabId);
+  }
+
+  async function pushOverlayStateForTab(tabId: number, windowId?: number): Promise<void> {
+    if (isControlledTabInWindow(tabId, windowId)) {
+      await ensureOverlayInjected(tabId);
+    }
+    const state = overlayStateForTab(tabId, windowId);
+    try {
+      await sendTabMessageBounded(tabId, state);
+    } catch {
+      // Restricted pages and uninjected free tabs cannot receive messages.
+    }
+  }
+
+  async function pushOverlayStateForWindow(windowId: number): Promise<void> {
+    const tabs = await chrome.tabs.query({ windowId });
+    await Promise.all(
+      tabs.map((tab) => {
+        if (typeof tab.id !== "number") return Promise.resolve();
+        return pushOverlayStateForTab(tab.id, windowId);
+      }),
+    );
+  }
+
+  function pushAllAgentOverlayStates(): void {
+    const windowIds = new Set(sessions.list().map((ctx) => ctx.agentWindowId));
+    for (const windowId of windowIds) {
+      void pushOverlayStateForWindow(windowId);
+    }
+  }
+
+  function onOverlaySessionStateChanged(): Promise<void> {
+    cooperation.syncSessions();
+    windowRouting.sync();
+    debug.sync();
+    video.sync();
+    const scriptSync = runtimeScripts.sync();
+    const liveSessionIds = new Set(sessions.list().map((ctx) => ctx.sessionId));
+    for (const sessionId of controlModes.keys()) {
+      if (!liveSessionIds.has(sessionId)) controlModes.delete(sessionId);
+    }
+    for (const sessionId of minimizedControlSessions) {
+      if (!liveSessionIds.has(sessionId)) minimizedControlSessions.delete(sessionId);
+    }
+    void cdp.syncSessions?.(liveSessionIds)?.catch((error) => {
+      console.debug("[bsk] session CDP sync failed", error);
+    });
+    pushAllAgentOverlayStates();
+    for (const refresh of popupSnapshotRefreshers) refresh();
+    return scriptSync;
+  }
+
+  function onBrowserControlResumed(sessionId: string): void {
+    const ctx = sessions.get(sessionId);
+    if (!ctx) return;
+    setControlMode(sessionId, "control");
+  }
+
+  function pushOverlayStateForAgentWindow(windowId: number): void {
+    if (!sessions.findByWindowId(windowId)) return;
+    void pushOverlayStateForWindow(windowId);
+  }
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    pushOverlayStateForAgentWindow(activeInfo.windowId);
+  });
+  chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+    if (changeInfo.status !== "complete") return;
+    if (typeof tab.windowId !== "number") return;
+    pushOverlayStateForAgentWindow(tab.windowId);
+  });
+  // Newly observed tabs are free unless the agent's own creation path has
+  // already claimed their concrete id. This listener only renders that
+  // state; it never infers or mutates ownership from event ordering.
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (typeof tab.windowId !== "number" || typeof tab.id !== "number") return;
+    if (!sessions.findByWindowId(tab.windowId)) return;
+    void pushOverlayStateForTab(tab.id, tab.windowId);
+  });
+  chrome.tabs.onAttached.addListener((tabId, { newWindowId }) => {
+    // Refresh controls after Chrome finishes moving the page.
+    void pushOverlayStateForTab(tabId, newWindowId);
+  });
+  chrome.tabs.onDetached.addListener((tabId) => {
+    void video.stopTab(tabId, "session_ended").catch(() => {});
+    debug.releaseTab(tabId);
+    const releasedSessionIds = sessions.releaseObservedTab(tabId);
+    if (releasedSessionIds.length > 0) void pushOverlayStateForTab(tabId);
+    for (const sessionId of releasedSessionIds)
+      void cdp
+        .releaseSessionTab(sessionId, tabId)
+        .catch((error) => console.debug("[bsk] observed tab release failed", error));
+  });
+  chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    forgetOverlayInjectedTab(tabId);
+    void video.stopTab(tabId, "tab_closed").catch(() => {});
+    debug.stopTab(tabId, "tab_closed");
+    sessions.forgetClosedTab(tabId, { isWindowClosing: removeInfo.isWindowClosing });
+    cdp.forgetClosedTab?.(tabId);
+    dispatcher.forgetClosedTab(tabId);
+    clearObserveIdentityStreaksForTab(tabId);
+    debug.sync();
+  });
+  chrome.tabs.onReplaced?.addListener((addedTabId, removedTabId) => {
+    forgetOverlayInjectedTab(removedTabId);
+    const replacedSessions = sessions.replaceTab(addedTabId, removedTabId);
+    windowRouting.handleTabReplaced(addedTabId, removedTabId);
+    cdp.replaceTab(addedTabId, removedTabId);
+    cooperation.replaceTab(addedTabId, removedTabId);
+    dispatcher.forgetClosedTab(removedTabId);
+    void video.stopTab(removedTabId, "tab_closed").catch(() => {});
+    debug.stopTab(removedTabId, "tab_closed");
+    clearObserveIdentityStreaksForTab(removedTabId);
+    debug.sync();
+    if (replacedSessions.length > 0) {
+      void chrome.tabs
+        .get(addedTabId)
+        .then((tab) => pushOverlayStateForTab(addedTabId, tab.windowId))
+        .catch(() => {});
+    }
+  });
+  // Reconcile dynamic Tier B content-script registrations on SW startup so
+  // idle browser startups always begin with zero registered content scripts.
+  void runtimeScripts.sync();
+  const recordDeps = {
+    tabsApi: chrome.tabs,
+    cdp,
+    frameCoordinator: recordFrameCoordinator,
+    sendToTab: (tabId: number, msg: Parameters<typeof chrome.tabs.sendMessage>[1]) =>
+      sendTabMessageBounded(tabId, msg),
+    bypassOverlay: async (tabId: number, enabled: boolean) => {
+      if (enabled) {
+        await ensureOverlayInjected(tabId);
+      }
+      try {
+        await sendTabMessageBounded(tabId, {
+          type: OVERLAY_AUTOMATION_BYPASS,
+          enabled,
+        });
+      } catch {
+        // Content script may be unavailable on restricted pages.
+      }
+    },
+  } satisfies RecordRuntimeDeps;
+  const cleanupAfterDisconnect = createDisconnectCleanup({
+    manager: sessions,
+    cancelAll: () => dispatcher.beginDisconnectCleanup(),
+    awaitPendingStarts: () => dispatcher.awaitPendingStarts(),
+    cancelSession: (sessionId) => dispatcher.cancelSession(sessionId),
+    awaitSessionCancelled: (sessionId) => dispatcher.awaitSessionCancelled(sessionId),
+    releaseHover: (sessionId) => dispatcher.releaseHoverForSession(sessionId),
+    onSessionStopped: async (sessionId) => {
+      await video.stopSession(sessionId).catch(() => {});
+      debug.releaseSession(sessionId);
+      await dispatcher.releaseScreenshotExports(sessionId);
+      cooperation.release(sessionId);
+      clearObserveIdentityStreaksForSession(sessionId);
+      evictSessionCdpRunner(cdp, sessionId);
+    },
+    // Same contract as the dispatcher's `tool.session_stop`: without these
+    // deps the agent-tab cleanup and the window-release path are dead code.
+    sessionStopDeps: {
+      cdp,
+      recording: recordDeps,
+      tabManagement: { tabs: chromeTabMutationApi },
+      tabsQuery: chromeTabsApi,
+    },
+    onSessionsChanged: onOverlaySessionStateChanged,
+  });
+  recordFrameCoordinator.attach();
+  attachRecordStepListener(recordDeps);
+  attachRecordFinishListener(recordDeps);
+  attachRecordQueryListener(recordDeps);
+
+  let lastInteractionPolicy = interactionPolicy(interactionPreferences.get());
+  interactionPreferences.subscribe((preferences) => {
+    const nextPolicy = interactionPolicy(preferences);
+    if (
+      nextPolicy.borrow_confirmation === lastInteractionPolicy.borrow_confirmation &&
+      nextPolicy.request_help === lastInteractionPolicy.request_help
+    ) {
+      return;
+    }
+    lastInteractionPolicy = nextPolicy;
+    for (const ctx of sessions.list()) {
+      try {
+        transport.send({
+          event: "session.interaction_changed",
+          payload: {
+            session_id: ctx.sessionId,
+            interaction: nextPolicy,
+          },
+        });
+      } catch {
+        /* Reconnection tears down these sessions. */
+      }
+    }
+  });
+  void interactionPreferences.readyOrFallback();
+  const dispatcher = new ToolDispatcher({
+    cooperation,
+    debug,
+    video,
+    interactionPreferences,
+    transport,
+    sessions,
+    cdp,
+    recording: recordDeps,
+    onSessionsChanged: onOverlaySessionStateChanged,
+    onBrowserControlResumed,
+    onAgentTabClaimed: (tabId, windowId) => {
+      void injectCooperationAllFrames(tabId)
+        .catch(() => {})
+        .then(() => {
+          void cooperation.observeTab(tabId).catch(() => {});
+          void pushOverlayStateForTab(tabId, windowId);
+        });
+    },
+    approveBorrow: async (ctx) => {
+      await interactionPreferences.readyOrFallback();
+      return requestBorrowConfirmation(ctx.tabId, {
+        timeoutMs: ctx.timeoutMs,
+        autoAllow: {
+          get: () => !interactionPreferences.get().confirmTabBorrow,
+          subscribe: (listener) => interactionPreferences.subscribe(listener),
+        },
+        ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+        deps: {
+          // Skip every Agent Window when choosing where to render the
+          // overlay â€” Agent Windows boot on about:blank, which has no
+          // content script, so they cannot surface an authorization decision.
+          isAgentWindowId: (windowId) => sessions.findByWindowId(windowId) !== null,
+          // Resolve i18n strings per-borrow so language switches take effect
+          // without re-creating the dispatcher.
+          notificationCopy: makeBorrowNotificationCopy(),
+        },
+      });
+    },
+    helpNotificationCopy: () => ({
+      title: i18n.t("helpRequest.notificationTitle", { ns: "extension" }),
+      body: "",
+    }),
+  });
+  dispatcher.start();
+  if (typeof chrome.notifications?.onClicked?.addListener === "function") {
+    attachBorrowNotificationClickHandler({
+      onClicked: chrome.notifications.onClicked,
+      windows: defaultBorrowChromeWindows,
+      notifications: defaultBorrowChromeNotifications,
+    });
+  } else {
+    console.warn(
+      "[browser-agent] chrome.notifications unavailable; borrow notifications will be skipped",
+    );
+  }
+  // The Allow / Deny buttons on the OS notification are the *explicit*
+  // authorization fallback when every candidate user window's content
+  // script was missing (extension just reloaded, page in BFCache, etc.).
+  // Without this listener those button clicks would land nowhere and the
+  // request would only resolve via the fail-closed background timeout.
+  if (typeof chrome.notifications?.onButtonClicked?.addListener === "function") {
+    attachBorrowNotificationButtonHandler({
+      onButtonClicked: chrome.notifications.onButtonClicked,
+    });
+  } else {
+    console.warn(
+      "[browser-agent] chrome.notifications.onButtonClicked unavailable; borrow Allow/Deny buttons will be inactive",
+    );
+  }
+  // Application-level heartbeat (Chrome 116+): while the post-handshake
+  // link is live, beat every 20s so WebSocket activity keeps the service
+  // worker â€” and thus the daemon connection â€” alive during use, rather
+  // than depending on the boundary-hugging 30s keepalive alarm. The
+  // daemon also uses these beats to reap a silently-dead browser.
+  const heartbeat = startHeartbeat({
+    send: (frame) => transport.send(frame),
+    onActiveChange: (cb) =>
+      controller.subscribe((snap) =>
+        cb(snap.state === "connected" || snap.state === "version_skew"),
+      ),
+  });
+
+  // MV3 service worker keepalive + reconnect supervisor (review M4/M5
+  // C3 + C4). Every 30s the alarm wakes the SW; if the transport is
+  // not connected we force a fresh connect attempt so we never sit on
+  // a stale `disconnected` state when the setTimeout-based reconnect
+  // dies with the SW. When already connected post-handshake, also emit
+  // a heartbeat in case SW timer throttling delayed `setInterval`.
+  startKeepalive({
+    transport,
+    requestConnect: () => controller.requestConnect(),
+    // A live socket without a completed handshake still needs a retry: the
+    // transport reports "connected" while the controller is "disconnected".
+    isConnected: () => {
+      const { state } = controller.snapshot();
+      return state === "connected" || state === "version_skew";
+    },
+    onConnectedTick: () => {
+      const { state } = controller.snapshot();
+      if (state === "connected" || state === "version_skew") {
+        heartbeat.beat();
+      }
+    },
+  });
+
+  // Wake-driven reconnect (best effort). An MV3 service worker is killed
+  // across OS sleep regardless of any keepalive, and the setTimeout-based
+  // transport backoff dies with it. These Chrome lifecycle events revive
+  // the worker and let us reconnect immediately instead of waiting for
+  // the next 30s alarm tick. They only help when the daemon is actually
+  // running; a cold daemon is (re)spawned by the next `bsk` command.
+  const reconnectIfNeeded = () => controller.requestConnect();
+  if (typeof chrome.runtime?.onStartup?.addListener === "function") {
+    chrome.runtime.onStartup.addListener(reconnectIfNeeded);
+  }
+  if (typeof chrome.idle?.onStateChanged?.addListener === "function") {
+    chrome.idle.onStateChanged.addListener((state) => {
+      // "active" fires when the user returns from idle/locked â€” the most
+      // reliable "machine just woke" signal we get.
+      if (state === "active") reconnectIfNeeded();
+    });
+    // Treat >60s of no input as idle so the active transition is timely.
+    chrome.idle.setDetectionInterval?.(60);
+  }
+
+  void (async () => {
+    // A transient storage failure at cold start must not abort this IIFE:
+    // controller.attach() below would never run and `ready` would stay false.
+    const [connectionEnabled, , auditEnabled] = await Promise.all([
+      getConnectionEnabled().catch((err) => {
+        console.warn("[browser-agent] connection preference unavailable", err);
+        return true;
+      }),
+      daemonPort.ready,
+      getAuditEnabled().catch((err) => {
+        console.warn("[browser-agent] audit preference unavailable", err);
+        return false;
+      }),
+    ]);
+    await cdp
+      .reconcileOrphanedAttachments((tabId) => sessions.findControllingSession(tabId) !== null)
+      .catch((err) => console.warn("[browser-agent] orphan debugger reconciliation failed", err));
+    const orphanContexts = new Map<number, SessionContext>();
+    await sessions
+      .reapOrphanAgentWindows({
+        returnBorrowedTab: async (windowId, borrowed, entry, orphanWindowIds) => {
+          let orphanCtx = orphanContexts.get(windowId);
+          if (!orphanCtx) {
+            orphanCtx = {
+              sessionId: entry.sessionId ?? `orphan-${windowId}`,
+              agentWindowId: windowId,
+              refStore: new RefStore(),
+              borrowedTabs: new Map((entry.borrowedTabs ?? []).map((item) => [item.tabId, item])),
+              agentCreatedTabs: new Set(entry.ownedTabIds),
+              createdAtMs: entry.updatedAtMs,
+            };
+            orphanContexts.set(windowId, orphanCtx);
+          }
+          const outcome = await returnBorrowedTab(orphanCtx, borrowed.tabId, {
+            tabs: chromeTabMutationApi,
+            tabsQuery: chromeTabsApi,
+            isAgentWindowId: (id) => sessions.isTrackedAgentWindow(id) || orphanWindowIds.has(id),
+          });
+          if (!isRpcError(outcome)) orphanCtx.borrowedTabs.delete(borrowed.tabId);
+          return !isRpcError(outcome);
+        },
+      })
+      .catch((err) => console.warn("[browser-agent] orphan window reap failed", err));
+    controller.setAuditEnabled(auditEnabled);
+    const cleanup = async () => {
+      dispatcher.beginDisconnectCleanup();
+      await video
+        .disconnect()
+        .catch((error) => console.warn("Video finalization failed during disconnect", error));
+      debug.dispose();
+      const report = await cleanupAfterDisconnect();
+      if (report.failures.length > 0) {
+        throw new Error(
+          `Session cleanup incomplete: ${report.failures.map((failure) => failure.message).join("; ")}`,
+        );
+      }
+    };
+    await controller.attach(transport, detectBrowserMeta(), connectionEnabled, {
+      beforeDisconnect: cleanup,
+      onDisconnected: cleanup,
+    });
+  })().catch((err) => {
+    console.error("[browser-agent] controller failed to attach", err);
+  });
+
+  chrome.runtime.onMessage.addListener((rawMsg, sender, sendResponse) => {
+    const msg = rawMsg as OverlayMessage | undefined;
+    if (!msg || typeof msg !== "object" || !("kind" in msg)) return false;
+
+    if (msg.kind === OVERLAY_MSG_WHO_AM_I) {
+      const windowId = sender.tab?.windowId;
+      const ctx = typeof windowId === "number" ? sessions.findByWindowId(windowId) : null;
+      sendResponse({ sessionId: ctx?.sessionId ?? null });
+      return false;
+    }
+
+    if (msg.kind === OVERLAY_MSG_READY) {
+      // Resolve from explicit tab ownership before sending so free tabs never
+      // flash the control mask.
+      if (typeof sender.tab?.id === "number") {
+        void pushOverlayStateForTab(sender.tab.id, sender.tab.windowId);
+      }
+      return false;
+    }
+
+    if (msg.kind === OVERLAY_MSG_SET_MINIMIZED) {
+      const ctx = sessions.get(msg.sessionId);
+      const tab = sender.tab;
+      if (
+        typeof msg.minimized !== "boolean" ||
+        !ctx ||
+        tab?.windowId !== ctx.agentWindowId ||
+        typeof tab.id !== "number" ||
+        !isAgentControlledTab(ctx, tab.id)
+      ) {
+        sendResponse({ ok: false });
+        return false;
+      }
+      if (msg.minimized) minimizedControlSessions.add(ctx.sessionId);
+      else minimizedControlSessions.delete(ctx.sessionId);
+      void pushOverlayStateForWindow(ctx.agentWindowId);
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    if (msg.kind === OVERLAY_MSG_INTERRUPT) {
+      const req = msg as OverlayInterruptRequest;
+      const ctx = sessions.get(req.sessionId);
+      if (ctx) cooperation.stopSession(ctx.sessionId);
+      if (ctx) setControlMode(req.sessionId, "interrupting");
+      void handleOverlayInterrupt(transport, req.sessionId).then((reply) => {
+        if (reply.ok && sessions.get(req.sessionId)) {
+          setControlMode(req.sessionId, "paused");
+        }
+        sendResponse(reply);
+      });
+      return true; // keep channel open
+    }
+    return false;
+  });
+
+  chrome.runtime.onConnect.addListener((connection) => {
+    if (connection.name !== POPUP_PORT_NAME) return;
+    const post = (msg: PopupInbound) => {
+      try {
+        connection.postMessage(msg);
+      } catch (err) {
+        console.debug("[browser-agent] popup post failed", err);
+      }
+    };
+    const postSnapshot = async () => {
+      const snap = controller.snapshot();
+      const tabs: TabOwnershipInfo[] = [];
+      for (const ctx of sessions.list()) {
+        const tabIds = new Set([...ctx.agentCreatedTabs, ...(ctx.observedTabs ?? [])]);
+        for (const tabId of tabIds) {
+          const view = cooperation.view(tabId);
+          if (!view) continue;
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            tabs.push({
+              tabId,
+              windowId: tab.windowId ?? 0,
+              url: tab.url ?? "",
+              title: tab.title ?? "",
+              cooperation: view,
+            });
+          } catch {
+            tabs.push({
+              tabId,
+              windowId: 0,
+              url: "",
+              title: "",
+              cooperation: view,
+            });
+          }
+        }
+      }
+      post({
+        kind: "snapshot",
+        data: { ...snap, sessionCount: sessions.list().length, tabs },
+      });
+    };
+    const unsubscribe = controller.subscribe(() => {
+      void postSnapshot();
+    });
+    popupSnapshotRefreshers.add(postSnapshot);
+    // Opening the popup is an explicit "is it alive?" action; try a reconnect
+    // now instead of waiting up to 30s for the next alarm tick.
+    if (controller.isConnectionEnabled && !controller.snapshot().daemonUpgradeRequired) {
+      controller.requestConnect();
+    }
+    connection.onMessage.addListener((raw: unknown) => {
+      const msg = raw as PopupOutbound;
+      if (msg && typeof msg === "object" && "kind" in msg) {
+        if (msg.kind === "set_label") {
+          // A reconnect is required for the daemon to receive the new label.
+          // Never turn a display-name edit into an implicit session teardown.
+          void dispatcher
+            .runWhenIdle(async () => {
+              await setLabel(msg.value);
+              await controller.refreshLabel();
+            })
+            .then(() => postSnapshot())
+            .catch((err) => console.error("[browser-agent] label update failed", err));
+        } else if (msg.kind === "set_connection_enabled") {
+          void controller.setConnectionEnabled(msg.value);
+          // Persist user intent in message order, independently of slow cleanup.
+          preferenceWrites = preferenceWrites
+            .then(() => persistConnectionEnabled(msg.value))
+            .catch((err) => {
+              console.error("[browser-agent] connection preference write failed", err);
+            });
+        } else if (msg.kind === "ownership_hold") {
+          void cooperation
+            .control(msg.tabId, msg.revision, "hold")
+            .then(() => void postSnapshot())
+            .catch((err) => console.error("[browser-agent] ownership hold failed", err));
+        } else if (msg.kind === "ownership_resume") {
+          void cooperation
+            .control(msg.tabId, msg.revision, "resume")
+            .then(() => void postSnapshot())
+            .catch((err) => console.error("[browser-agent] ownership resume failed", err));
+        } else if (msg.kind === "ownership_yield") {
+          void cooperation
+            .yieldByTabId(msg.tabId)
+            .then(() => void postSnapshot())
+            .catch((err) => console.error("[browser-agent] ownership yield failed", err));
+        }
+      }
+    });
+    connection.onDisconnect.addListener(() => {
+      popupSnapshotRefreshers.delete(postSnapshot);
+      unsubscribe();
+    });
+  });
+
+  // Stash on globalThis so the SW DevTools can poke at internals.
+  // Dev-only to avoid leaking internals to inspectors in shipped builds
+  // (review M4/M5 M4).
+  if (import.meta.env.DEV) {
+    const dbg = globalThis as unknown as {
+      __bskController?: ConnectionController;
+      __bhSessions?: SessionManager;
+      __bhDispatcher?: ToolDispatcher;
+    };
+    dbg.__bskController = controller;
+    dbg.__bhSessions = sessions;
+    dbg.__bhDispatcher = dispatcher;
+  }
+
+  console.info("[browser-agent] background worker initialised");
+});
+
+/**
+ * Push a `session.user_interrupt` event to the daemon for `sessionId`.
+ * Returns `{ ok: true }` when `transport.send` accepts the frame and
+ * `{ ok: false }` when it throws (sink closed, transport not yet
+ * connected, etc.). The daemon-side cancellation is fire-and-forget
+ * â€” a failure here just means the user will need to retry the
+ * interrupt; no daemon state is left half-updated.
+ */
+async function handleOverlayInterrupt(
+  transport: Pick<Transport, "send">,
+  sessionId: string,
+): Promise<OverlayInterruptResponse> {
+  try {
+    transport.send({
+      event: "session.user_interrupt",
+      payload: { session_id: sessionId },
+    });
+    return { ok: true };
+  } catch (err) {
+    console.warn("[browser-agent] failed to send session.user_interrupt", err);
+    return { ok: false };
+  }
+}
+
+function makeBorrowNotificationCopy(): BorrowNotificationCopy {
+  return {
+    title: i18n.t("borrowConfirmation.notificationTitle", { ns: "extension" }),
+    body: (tabTitle: string) =>
+      i18n.t("borrowConfirmation.notificationBody", { ns: "extension", tabTitle }),
+    iconUrl: "icon/logo.svg",
+    allowButton: i18n.t("borrowConfirmation.allow", { ns: "extension" }),
+    denyButton: i18n.t("borrowConfirmation.deny", { ns: "extension" }),
+  };
+}
+
+

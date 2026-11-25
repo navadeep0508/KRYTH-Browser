@@ -1,0 +1,272 @@
+import { createRandomUuid } from "@/lib/random-uuid";
+import {
+  markRecordingDocument,
+  type RecordingDocumentMarker,
+  waitForDocumentElement,
+} from "@/lib/recording/document-marker";
+import {
+  isRecordFrameStartMessage,
+  RECORD_FRAME_PORT,
+  type RecordFramePortMessage,
+  type RecordFrameStartMessage,
+} from "@/lib/recording/frame-bridge";
+import { isExtensionOverlayNode, scanSubtreeForShadowRootsAndSubframes } from "../dom-primitives";
+import { type RecordCaptureController, startRecordCapture } from "../record-capture";
+import { RecordStepDelivery } from "../record-step-delivery";
+
+interface ActiveFrameRecording {
+  requestId: string;
+  producerId: string;
+  port: chrome.runtime.Port;
+  delivery: RecordStepDelivery;
+  capture: RecordCaptureController;
+  marker: RecordingDocumentMarker;
+  subframeObserver: MutationObserver;
+  stopped: boolean;
+}
+
+const RECORD_FRAME_REGISTER_TIMEOUT_MS = 5_000;
+
+export class RecordFrameAgent {
+  #active: ActiveFrameRecording | null = null;
+  #startPromise: Promise<{ ok: true } | { ok: false; error: string }> | null = null;
+  #disposed = false;
+
+  async start(
+    message: RecordFrameStartMessage,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (this.#active?.requestId === message.requestId) {
+      return this.#active.stopped
+        ? { ok: false, error: "recording document is stopping" }
+        : { ok: true };
+    }
+    if (this.#disposed) return { ok: false, error: "recording document is disposed" };
+    if (this.#startPromise) {
+      await this.#startPromise;
+      return this.start(message);
+    }
+    if (this.#active) this.cancel(this.#active.requestId);
+    const starting = this.#start(message);
+    this.#startPromise = starting;
+    try {
+      return await starting;
+    } finally {
+      if (this.#startPromise === starting) this.#startPromise = null;
+    }
+  }
+
+  cancel(requestId: string): void {
+    const active = this.#active;
+    if (!active || active.requestId !== requestId) return;
+    this.#teardown(active, true);
+  }
+
+  dispose(): void {
+    this.#disposed = true;
+    if (this.#active) this.cancel(this.#active.requestId);
+  }
+
+  #teardown(active: ActiveFrameRecording, disconnectPort: boolean): void {
+    if (this.#active !== active) return;
+    this.#active = null;
+    active.subframeObserver.disconnect();
+    active.capture.dispose();
+    active.marker.restore();
+    if (disconnectPort) {
+      try {
+        active.port.disconnect();
+      } catch {
+        // Ignore already-closed ports.
+      }
+    }
+  }
+
+  async #start(
+    message: RecordFrameStartMessage,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const producerId = createRandomUuid();
+    const root = await waitForDocumentElement();
+    if (this.#disposed) return { ok: false, error: "recording document is disposed" };
+    const marker = markRecordingDocument(producerId, root);
+    const port = chrome.runtime.connect({ name: RECORD_FRAME_PORT });
+    try {
+      await registerPort(port, message.requestId, producerId);
+    } catch {
+      marker.restore();
+      port.disconnect();
+      return { ok: false, error: "failed to register recording document" };
+    }
+    if (this.#disposed) {
+      marker.restore();
+      port.disconnect();
+      return { ok: false, error: "recording document is disposed" };
+    }
+
+    const delivery = new RecordStepDelivery(message.requestId, undefined, producerId);
+    const capture = startRecordCapture(
+      message.requestId,
+      (step) => {
+        marker.ensure();
+        delivery.enqueue(step);
+      },
+      { captureNavigation: window.top === window },
+    );
+    let subframeNotifyScheduled = false;
+    const observedSubframeRoots = new WeakSet<Node>();
+    const observeSubframeRoot = (shadowOrRoot: Node) => {
+      if (observedSubframeRoots.has(shadowOrRoot)) return;
+      observedSubframeRoots.add(shadowOrRoot);
+      subframeObserver.observe(shadowOrRoot, { childList: true, subtree: true });
+    };
+    const subframeObserver = new MutationObserver((records) => {
+      const visited = new Set<Node>();
+      let addedSubframe = false;
+      for (const record of records) {
+        if (record.type !== "childList" || isExtensionOverlayNode(record.target)) continue;
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element) || isExtensionOverlayNode(node)) continue;
+          if (scanSubtreeForShadowRootsAndSubframes(node, observeSubframeRoot, visited)) {
+            addedSubframe = true;
+          }
+        }
+      }
+      if (subframeNotifyScheduled || !addedSubframe) return;
+      subframeNotifyScheduled = true;
+      queueMicrotask(() => {
+        subframeNotifyScheduled = false;
+        if (this.#active !== active) return;
+        try {
+          active.port.postMessage({
+            type: "subframe_added",
+            requestId: active.requestId,
+            producerId: active.producerId,
+          } satisfies RecordFramePortMessage);
+        } catch {
+          // Disconnected ports are cleaned up by `onDisconnect`.
+        }
+      });
+    });
+    observeSubframeRoot(root);
+    scanSubtreeForShadowRootsAndSubframes(root, observeSubframeRoot, new Set<Node>());
+    const active: ActiveFrameRecording = {
+      requestId: message.requestId,
+      producerId,
+      port,
+      delivery,
+      capture,
+      marker,
+      subframeObserver,
+      stopped: false,
+    };
+    this.#active = active;
+    port.onMessage.addListener((raw: unknown) => {
+      const command = raw as Partial<RecordFramePortMessage>;
+      if (command.type === "stop" && command.requestId === active.requestId) {
+        void this.#stop(active, command.commandId);
+      } else if (command.type === "cleanup" && command.requestId === active.requestId) {
+        this.#cleanup(active);
+      } else if (command.type === "cancel" && command.requestId === active.requestId) {
+        this.cancel(active.requestId);
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      this.#teardown(active, false);
+    });
+    return { ok: true };
+  }
+
+  async #stop(active: ActiveFrameRecording, commandId: string | undefined): Promise<void> {
+    if (!commandId || this.#active !== active) return;
+    active.stopped = true;
+    active.subframeObserver.disconnect();
+    // Stop event capture and commit any dirty fill, but preserve password
+    // redaction markers and document identity until trailing VOM capture ends.
+    active.capture.stop();
+    const succeeded = await active.delivery.flush();
+    if (this.#active !== active) return;
+    try {
+      active.port.postMessage({
+        type: "stopped",
+        requestId: active.requestId,
+        commandId,
+        ok: succeeded,
+        ...(succeeded ? {} : { error: "failed to deliver one or more recorded steps" }),
+      } satisfies RecordFramePortMessage);
+    } catch {
+      // Disconnected ports are cleaned up by `onDisconnect`.
+    }
+  }
+
+  #cleanup(active: ActiveFrameRecording): void {
+    if (this.#active !== active) return;
+    this.#teardown(active, false);
+    try {
+      active.port.postMessage({
+        type: "cleaned",
+        requestId: active.requestId,
+      } satisfies RecordFramePortMessage);
+    } catch {
+      // Ignore already-closed ports.
+    }
+    try {
+      active.port.disconnect();
+    } catch {
+      // Ignore already-closed ports.
+    }
+  }
+}
+
+function registerPort(
+  port: chrome.runtime.Port,
+  requestId: string,
+  producerId: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("recording document registration timed out"));
+    }, RECORD_FRAME_REGISTER_TIMEOUT_MS);
+    const cleanup = () => {
+      clearTimeout(timer);
+      port.onMessage.removeListener(onMessage);
+      port.onDisconnect.removeListener(onDisconnect);
+    };
+    const onMessage = (raw: unknown) => {
+      const message = raw as Partial<RecordFramePortMessage>;
+      if (
+        message.type !== "ready_ack" ||
+        message.requestId !== requestId ||
+        message.producerId !== producerId
+      ) {
+        return;
+      }
+      cleanup();
+      resolve();
+    };
+    const onDisconnect = () => {
+      cleanup();
+      reject(new Error("recording document port disconnected"));
+    };
+    port.onMessage.addListener(onMessage);
+    port.onDisconnect.addListener(onDisconnect);
+    port.postMessage({ type: "ready", requestId, producerId } satisfies RecordFramePortMessage);
+  });
+}
+
+export function attachRecordFrameAgent(): () => void {
+  const agent = new RecordFrameAgent();
+  const onMessage = (
+    message: unknown,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: { ok: true } | { ok: false; error: string }) => void,
+  ) => {
+    if (!isRecordFrameStartMessage(message)) return false;
+    void agent.start(message).then(sendResponse);
+    return true;
+  };
+  chrome.runtime.onMessage.addListener(onMessage);
+  return () => {
+    chrome.runtime.onMessage.removeListener(onMessage);
+    agent.dispose();
+  };
+}

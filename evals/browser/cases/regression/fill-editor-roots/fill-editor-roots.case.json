@@ -1,0 +1,181 @@
+﻿{
+  "$schema": "../../../schemas/case.schema.json",
+  "schemaVersion": 1,
+  "id": "fill-editor-roots",
+  "title": "Fill native fields and editor roots; reject descendants",
+  "suite": "regression",
+  "tags": ["fill", "contenteditable", "regression"],
+  "source": {
+    "pr": "https://github.com/Browser Agent/pull/301"
+  },
+  "fixture": {
+    "startPath": "/fill-editor-roots"
+  },
+  "prompts": {
+    "en": "Open {url}. Attempt to fill #paragraph with \"wrong\" and confirm target_not_fillable. Fill Notes with \"notes\". Replace Message editor with \"hello\", append \" world\", then clear it with an empty value. Fill it with \"done\". Click Check values after the rejected attempt and after each editor operation; confirm FILL-ROOTS-OK. Leave Unrelated field and outside text unchanged. Close the session.",
+    "zh-CN": "æ‰“å¼€ {url}ã€‚å°è¯•æŠŠ #paragraph å¡«æˆ wrongï¼Œç¡®è®¤è¢« target_not_fillable æ‹’ç»ã€‚å°† Notes å¡«ä¸º notesã€‚æŠŠ Message editor æ›¿æ¢æˆ helloï¼Œè¿½åŠ  worldï¼ˆå‰é¢å¸¦ä¸€ä¸ªç©ºæ ¼ï¼‰ï¼Œå†ç”¨ç©ºå­—ç¬¦ä¸²æ¸…ç©ºï¼Œæœ€åŽå¡«ä¸º doneã€‚æ¯æ¬¡è¢«æ‹’ç»æˆ–ç¼–è¾‘å™¨æ“ä½œåŽéƒ½ç‚¹å‡» Check valuesï¼Œç¡®è®¤ FILL-ROOTS-OKã€‚ä¸è¦æ”¹å˜ Unrelated field æˆ– outside textï¼Œæœ€åŽå…³é—­ä¼šè¯ã€‚"
+  },
+  "coverage": ["session.start", "session.stop", "page.navigate", "interact.fill", "interact.click"],
+  "assertions": {
+    "site": [
+      {
+        "label": "final fields and unrelated content match",
+        "type": "fill.checked",
+        "where": {
+          "data.notes": "notes",
+          "data.editor": "done",
+          "data.guard": "untouched",
+          "data.outside": "outside text"
+        },
+        "minCount": 1
+      },
+      {
+        "label": "rejected descendant preserved editor",
+        "type": "fill.checked",
+        "where": {
+          "data.notes": "old notes",
+          "data.editor": "old paragraph\n\nsecond paragraph",
+          "data.guard": "untouched",
+          "data.outside": "outside text"
+        },
+        "minCount": 1
+      },
+      {
+        "label": "replacement",
+        "type": "fill.checked",
+        "where": {
+          "data.notes": "notes",
+          "data.editor": "hello",
+          "data.guard": "untouched",
+          "data.outside": "outside text"
+        },
+        "minCount": 1
+      },
+      {
+        "label": "append",
+        "type": "fill.checked",
+        "where": {
+          "data.notes": "notes",
+          "data.editor": "hello world",
+          "data.guard": "untouched",
+          "data.outside": "outside text"
+        },
+        "minCount": 1
+      },
+      {
+        "label": "clear",
+        "type": "fill.checked",
+        "where": {
+          "data.notes": "notes",
+          "data.editor": "",
+          "data.guard": "untouched",
+          "data.outside": "outside text"
+        },
+        "minCount": 1
+      }
+    ],
+    "response": [
+      {
+        "label": "confirmed fixture result",
+        "includes": "FILL-ROOTS-OK"
+      }
+    ],
+    "adapter": [
+      {
+        "label": "descendant rejected with the expected error",
+        "key": "descendantRejected"
+      },
+      {
+        "label": "browser session was closed",
+        "key": "sessionStopped"
+      }
+    ]
+  },
+  "smoke": {
+    "steps": [
+      {
+        "action": "navigate"
+      },
+      {
+        "action": "sync",
+        "saveAs": "control"
+      },
+      {
+        "action": "fill",
+        "selector": "#paragraph",
+        "contextId": "{control.context_id}",
+        "value": "wrong",
+        "expectError": {
+          "code": "invalid_params",
+          "reason": "target_not_fillable"
+        },
+        "evidence": "descendantRejected"
+      },
+      {
+        "action": "click",
+        "selector": "#check",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "fill",
+        "selector": "#notes",
+        "contextId": "{control.context_id}",
+        "value": "notes"
+      },
+      {
+        "action": "fill",
+        "selector": "#editor",
+        "contextId": "{control.context_id}",
+        "value": "hello"
+      },
+      {
+        "action": "click",
+        "selector": "#check",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "fill",
+        "selector": "#editor",
+        "contextId": "{control.context_id}",
+        "value": " world",
+        "noClear": true
+      },
+      {
+        "action": "click",
+        "selector": "#check",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "fill",
+        "selector": "#editor",
+        "contextId": "{control.context_id}",
+        "value": ""
+      },
+      {
+        "action": "click",
+        "selector": "#check",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "fill",
+        "selector": "#editor",
+        "contextId": "{control.context_id}",
+        "value": "done"
+      },
+      {
+        "action": "click",
+        "selector": "#check",
+        "contextId": "{control.context_id}"
+      },
+      {
+        "action": "wait-site-event",
+        "type": "fill.checked"
+      },
+      {
+        "action": "observe"
+      }
+    ]
+  }
+}
+
+

@@ -1,0 +1,174 @@
+﻿import { beforeEach, describe, expect, it } from "vitest";
+import { describeEventTarget, describeTarget, isMeaningfulClickTarget } from "../describe-target";
+
+describe("describeTarget", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("prefers aria-label and button role", () => {
+    document.body.innerHTML = `<button aria-label="å‘å¸ƒ">go</button>`;
+    const el = document.querySelector("button")!;
+    expect(describeTarget(el)).toEqual({
+      tag: "button",
+      role: "button",
+      name: "å‘å¸ƒ",
+    });
+  });
+
+  it("uses label text and name_attr for inputs", () => {
+    document.body.innerHTML = `
+      <label for="svc">æœåŠ¡åç§°</label>
+      <input id="svc" name="serviceName" />
+    `;
+    const el = document.querySelector("input")!;
+    expect(describeTarget(el)).toEqual({
+      tag: "input",
+      role: "textbox",
+      name: "æœåŠ¡åç§°",
+      name_attr: "serviceName",
+    });
+  });
+
+  it("never invents CSS selectors or @eN", () => {
+    document.body.innerHTML = `<a href="/x">è¯¦æƒ…</a>`;
+    const desc = describeTarget(document.querySelector("a")!);
+    expect(JSON.stringify(desc)).not.toMatch(/@e\d+|nth-of-type|#/);
+    expect(desc).toEqual({ tag: "a", role: "link", name: "è¯¦æƒ…" });
+  });
+
+  it("prefers heading text inside SERP-style links", () => {
+    document.body.innerHTML = `
+      <a href="https://www..com">
+        <h3> è…¾è®¯</h3>
+        <cite>https://www..com</cite>
+      </a>
+    `;
+    expect(describeTarget(document.querySelector("a")!).name).toBe(" è…¾è®¯");
+  });
+});
+
+describe("LLM textbook click targets", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("rejects tag-only targets the LLM cannot find", () => {
+    expect(isMeaningfulClickTarget({ tag: "div" })).toBe(false);
+  });
+
+  it("treats a short visible name as the teaching signal", () => {
+    expect(isMeaningfulClickTarget({ tag: "div", name: "å‘å¸ƒ" })).toBe(true);
+  });
+
+  it("ignores anonymous layout chrome and lifts child clicks to the named button", () => {
+    document.body.innerHTML = `
+      <div id="noise">background</div>
+      <button type="button"><span id="icon">å‘å¸ƒ</span></button>
+    `;
+    expect(describeEventTarget(document.querySelector("#noise"))).toBeNull();
+    expect(describeEventTarget(document.querySelector("#icon"))).toEqual({
+      tag: "button",
+      role: "button",
+      name: "å‘å¸ƒ",
+    });
+  });
+
+  it("does not attach layout sibling text as nearby_label on buttons", () => {
+    document.body.innerHTML = `
+      <div>background</div>
+      <button type="button" id="pub">å‘å¸ƒ</button>
+    `;
+    expect(describeTarget(document.querySelector("#pub")!)).toEqual({
+      tag: "button",
+      role: "button",
+      name: "å‘å¸ƒ",
+    });
+  });
+
+  it("keeps nearby_label for form fields from a preceding label-like sibling", () => {
+    document.body.innerHTML = `
+      <div>æœåŠ¡åç§°</div>
+      <input id="svc" />
+    `;
+    expect(describeTarget(document.querySelector("#svc")!)).toEqual(
+      expect.objectContaining({
+        tag: "input",
+        nearby_label: "æœåŠ¡åç§°",
+      }),
+    );
+  });
+
+  it("does not treat plain text blocks as clicks", () => {
+    document.body.innerHTML = `<p id="copy">è¯´æ˜Žæ–‡å­—</p>`;
+    expect(describeEventTarget(document.querySelector("#copy"))).toBeNull();
+  });
+
+  it("records explicit controls whose own name is longer than a short label", () => {
+    document.body.innerHTML = `
+      <button type="button"><span id="step">Book and manage your theory test</span>
+        <span> , Show this section</span></button>
+      <a href="/story" id="story">Next-Concept Modeling: Fast, Parallel Coarse-to-Fine Text Generation</a>
+      <a href="/bare" id="bare">https://example.com/a/long/path/that/is/only/a/url</a>
+      <div class="btn" id="card" style="cursor: pointer">A long paragraph of card text that is not the name of any control</div>
+    `;
+    expect(describeEventTarget(document.querySelector("#step"))).toEqual({
+      tag: "button",
+      role: "button",
+      name: "Book and manage your theory test , Show this section",
+    });
+    expect(describeEventTarget(document.querySelector("#story"))).toEqual({
+      tag: "a",
+      role: "link",
+      name: "Next-Concept Modeling: Fast, Parallel Coarse-to-Fine Text Generation",
+    });
+    // Bare URLs and long text guessed from layout stay out of the textbook.
+    expect(describeEventTarget(document.querySelector("#bare"))).toBeNull();
+    expect(describeEventTarget(document.querySelector("#card"))).toBeNull();
+  });
+
+  it("records custom button-like controls by their visible label", () => {
+    document.body.innerHTML = `<div class="btn" id="pub" style="cursor: pointer">å‘å¸ƒ</div>`;
+    expect(describeEventTarget(document.querySelector("#pub"))).toEqual(
+      expect.objectContaining({ tag: "div", name: "å‘å¸ƒ" }),
+    );
+  });
+});
+
+describe("describeTarget label references across shadow trees", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  function shadowButton(outerLabel: boolean): Element {
+    document.body.innerHTML = `${outerLabel ? '<span id="name">Delete account</span>' : ""}<div id="host"></div>`;
+    const host = document.querySelector("#host")!;
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <span id="name">Save</span>
+      <button id="action" aria-labelledby="name"></button>
+    `;
+    return shadow.querySelector("button")!;
+  }
+
+  it("resolves aria-labelledby inside the element's own shadow root", () => {
+    expect(describeTarget(shadowButton(false))).toEqual({
+      tag: "button",
+      role: "button",
+      name: "Save",
+    });
+  });
+
+  it("prefers the shadow label over a same-id element in the outer document", () => {
+    expect(describeTarget(shadowButton(true)).name).toBe("Save");
+  });
+
+  it("still resolves aria-labelledby for light-DOM elements", () => {
+    document.body.innerHTML = `
+      <span id="save">Save</span>
+      <button id="action" aria-labelledby="save"></button>
+    `;
+    expect(describeTarget(document.querySelector("#action")!).name).toBe("Save");
+  });
+});
+

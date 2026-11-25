@@ -1,0 +1,204 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>åˆæˆè§†é¢‘é—¨æˆ· Â· Video Portal Benchmark</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 15px system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+  header { position: sticky; top: 0; z-index: 20; background: #1e293b; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+  main { max-width: 1200px; margin: auto; padding: 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  .panel { background: #1e293b; border-radius: 10px; padding: 16px; border: 1px solid #334155; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button, select, input { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #475569; background: #334155; color: #f8fafc; cursor: pointer; }
+  output { display: block; background: #020617; color: #38bdf8; padding: 10px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; }
+  .video-card { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 10px; border-bottom: 1px solid #334155; }
+  .thumb { background: #38bdf8; color: #020617; font-weight: bold; display: flex; align-items: center; justify-content: center; height: 64px; border-radius: 6px; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.82); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-card { background: #1e293b; border: 2px solid #38bdf8; padding: 24px; border-radius: 12px; width: 420px; }
+</style>
+<header>
+  <strong>åˆæˆè§†é¢‘é—¨æˆ· Â· Bsk Video Benchmark</strong>
+  <div>
+    <button type="button" id="open-stacked-modals">è§¦å‘åŒå±‚å¼¹å±‚é®ç½©</button>
+    <button type="button" id="refresh-feed">æ¢ä¸€æ¢æŽ¨èæµ</button>
+  </div>
+</header>
+<main>
+  <section class="panel" id="player-panel">
+    <h1 id="video-title">ã€æ·±åº¦è§£æžã€‘Browser Agent è§†è§‰å¯¹è±¡æ¨¡åž‹ä¸Žäººæœºå…±é©¾æž¶æž„</h1>
+    <div id="video-meta" data-bvid="BV1bsk2026" data-views="128400" data-danmaku="842">
+      <span id="up-author">UPä¸»ï¼šæž¶æž„å®žéªŒå®¤</span> Â·
+      <span id="view-count">12.8ä¸‡æ’­æ”¾</span> Â·
+      <span id="danmaku-count">842å¼¹å¹•</span>
+    </div>
+    <video id="portal-video" src="/canvas-demo.mp4" width="640" preload="auto" muted></video>
+    <div class="controls" role="toolbar" aria-label="æ’­æ”¾å™¨æŽ§åˆ¶æ ">
+      <button type="button" id="btn-play-toggle">æ’­æ”¾/æš‚åœ</button>
+      <button type="button" id="btn-mute-toggle" aria-pressed="true">å–æ¶ˆé™éŸ³</button>
+      <label>å€é€Ÿ
+        <select id="playback-rate" aria-label="å€é€Ÿ">
+          <option value="1">1.0x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2.0x</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="danmaku-switch" checked> å¼€å¯å¼¹å¹•</label>
+      <button type="button" id="chapter-2">è·³è‡³ç« èŠ‚2 (0.8s)</button>
+      <button type="button" id="toggle-desc" aria-expanded="false">å±•å¼€ç®€ä»‹</button>
+    </div>
+    <div id="video-desc" hidden>
+      æœ¬è§†é¢‘æ¼”ç¤ºçœŸå®ž Chromium ä¸‹çš„ VOM å‡ ä½•å¯¹é½ã€æ­¥éª¤çº§ expect å®ˆå«ã€bsk plan æ‰¹é‡æ‰§è¡Œä¸Ž bsk recipe é›¶è½®æ¬¡å›žæ”¾ã€‚
+    </div>
+    <output id="player-state" role="status"></output>
+
+    <h2>å¼¹å¹•ä¸Žçƒ­é—¨è¯„è®º</h2>
+    <ul id="comment-list" role="list">
+      <li role="listitem" data-floor="1"><strong class="user">æžå®¢A</strong>ï¼š<span class="content">äººæœºå…±é©¾çš„ effect_state ä¸‰æ€éžå¸¸å…³é”®ï¼</span> <span class="likes">ðŸ‘ 96</span></li>
+      <li role="listitem" data-floor="2"><strong class="user">å¼€å‘è€…B</strong>ï¼š<span class="content">bsk plan ä¸€æ¬¡æäº¤æŠŠå¤šæ­¥è¡¨å•è½®æ¬¡é™åˆ°äº† 1 è½®ã€‚</span> <span class="likes">ðŸ‘ 64</span></li>
+      <li role="listitem" data-floor="3"><strong class="user">æµ‹è¯•å‘˜C</strong>ï¼š<span class="content">æ±‚æ›´æ–°çœŸå®žè§†é¢‘ä¸Žè®ºå›ç½‘ç«™çš„ Benchmark æ•°æ®ï¼</span> <span class="likes">ðŸ‘ 51</span></li>
+    </ul>
+    <button type="button" id="load-more-comments">åŠ è½½æ›´å¤šè¯„è®º</button>
+  </section>
+
+  <aside class="panel" id="recommend-panel">
+    <h2>ç›¸å…³æŽ¨èè§†é¢‘</h2>
+    <div id="recommend-list" role="list"></div>
+  </aside>
+</main>
+
+<!-- åˆå§‹æˆ–å¯è§¦å‘çš„åŒå±‚é®ç½©ï¼šç”¨äºŽæµ‹è¯• EDGE-STACKED-MODALS ä¸Žè§†é¢‘ç«™ç™»å½•å¼¹å±‚å…³é—­ -->
+<div class="modal-backdrop" id="modal-layer-1" role="dialog" aria-label="é«˜æ¸…ç”»è´¨ç™»å½•å¼•å¯¼" hidden>
+  <div class="modal-card">
+    <h3>ç™»å½•å³å¯ä½“éªŒ 4K è¶…æ¸…ç”»è´¨</h3>
+    <p>æœªç™»å½•ç”¨æˆ·ä»å¯å…³é—­æ­¤å¼¹å±‚ç»§ç»­è§‚çœ‹å…¬å¼€è§†é¢‘ã€‚</p>
+    <button type="button" id="close-modal-1">å…³é—­ç™»å½•å¼•å¯¼</button>
+  </div>
+</div>
+<div class="modal-backdrop" id="modal-layer-2" role="dialog" aria-label="é’å°‘å¹´æ¨¡å¼æç¤º" style="z-index: 60" hidden>
+  <div class="modal-card">
+    <h3>é’å°‘å¹´å®ˆæŠ¤æç¤ºï¼ˆé¡¶å±‚å¼¹çª—ï¼‰</h3>
+    <p>è¯·å…ˆå…³é—­æœ€ä¸Šå±‚æç¤ºï¼Œå†æ“ä½œä¸‹å±‚é¡µé¢ã€‚</p>
+    <button type="button" id="close-modal-2">æˆ‘çŸ¥é“äº†ï¼ˆå…³é—­é¡¶å±‚ï¼‰</button>
+  </div>
+</div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const video = $('#portal-video');
+  const emit = (type, data = {}) => fetch('/event', { method: 'POST', body: JSON.stringify({ type, ...data }) });
+  const search = new URLSearchParams(location.search);
+
+  let batch = 0;
+  function renderRecommendations() {
+    batch++;
+    const items = [
+      { id: `BV-10${batch}`, title: `Browser Agent æž¶æž„å‰–æž ç¬¬${batch}æœŸ`, up: 'æ·±æµ·å·¥ç¨‹å¸ˆ', views: `${10 + batch}.2ä¸‡`, duration: '14:20', url: `/video-portal?vid=BV-10${batch}` },
+      { id: `BV-20${batch}`, title: `CDP è·¨æº OOPIF åæ ‡å¯¹é½å®žæˆ˜ #${batch}`, up: 'å‰ç«¯å†…å¹•', views: `${6 + batch}.5ä¸‡`, duration: '09:45', url: `/video-portal?vid=BV-20${batch}` },
+      { id: `BV-30${batch}`, title: `é›¶æ¨¡åž‹è½®æ¬¡ Recipe å›žæ”¾ä¸Žæ¼‚ç§»è‡ªæ£€ #${batch}`, up: 'è‡ªåŠ¨åŒ–å‘¨åˆŠ', views: `${4 + batch}.8ä¸‡`, duration: '18:10', url: `/video-portal?vid=BV-30${batch}` },
+      { id: `BV-40${batch}`, title: `é«˜å¹¶å‘å•é£žé˜Ÿåˆ—ä¸Žå–æ¶ˆçº¿åºéªŒè¯ #${batch}`, up: 'Rustç³»ç»Ÿç»„', views: `${3 + batch}.1ä¸‡`, duration: '11:05', url: `/video-portal?vid=BV-40${batch}` },
+    ];
+    $('#recommend-list').innerHTML = items.map((item) => `
+      <article class="video-card" role="listitem" data-vid="${item.id}">
+        <div class="thumb">${item.duration}</div>
+        <div>
+          <h3><a href="${item.url}">${item.title}</a></h3>
+          <div class="up">${item.up}</div>
+          <div class="stats">${item.views}æ’­æ”¾</div>
+        </div>
+      </article>
+    `).join('');
+  }
+  renderRecommendations();
+
+  function syncPlayerState(trigger = 'state') {
+    const state = {
+      trigger,
+      paused: video.paused,
+      muted: video.muted,
+      playbackRate: video.playbackRate,
+      currentTime: Number(video.currentTime.toFixed(2)),
+      readyState: video.readyState,
+      danmaku: $('#danmaku-switch').checked,
+      descExpanded: !$('#video-desc').hidden,
+      batch,
+    };
+    $('#player-state').textContent = JSON.stringify(state);
+    return state;
+  }
+
+  for (const ev of ['loadedmetadata', 'play', 'pause', 'ratechange', 'volumechange', 'seeked']) {
+    video.addEventListener(ev, () => syncPlayerState(ev));
+  }
+
+  $('#btn-play-toggle').onclick = async () => {
+    if (video.paused) {
+      try { await video.play(); } catch {}
+    } else {
+      video.pause();
+    }
+    emit('video-play-toggle', syncPlayerState('play-toggle'));
+  };
+  $('#btn-mute-toggle').onclick = () => {
+    video.muted = !video.muted;
+    $('#btn-mute-toggle').setAttribute('aria-pressed', String(!video.muted));
+    $('#btn-mute-toggle').textContent = video.muted ? 'å–æ¶ˆé™éŸ³' : 'å·²å¼€å¯å£°éŸ³';
+    emit('video-mute-toggle', syncPlayerState('mute-toggle'));
+  };
+  $('#playback-rate').onchange = () => {
+    video.playbackRate = Number($('#playback-rate').value);
+    emit('video-rate-change', syncPlayerState('rate-change'));
+  };
+  $('#danmaku-switch').onchange = () => {
+    emit('video-danmaku-toggle', syncPlayerState('danmaku-toggle'));
+  };
+  $('#chapter-2').onclick = () => {
+    video.currentTime = 0.8;
+    emit('video-chapter-seek', syncPlayerState('chapter-seek'));
+  };
+  $('#toggle-desc').onclick = () => {
+    const hidden = !$('#video-desc').hidden;
+    $('#video-desc').hidden = hidden;
+    $('#toggle-desc').setAttribute('aria-expanded', String(!hidden));
+    $('#toggle-desc').textContent = hidden ? 'å±•å¼€ç®€ä»‹' : 'æ”¶èµ·ç®€ä»‹';
+    emit('video-desc-toggle', syncPlayerState('desc-toggle'));
+  };
+  $('#refresh-feed').onclick = () => {
+    renderRecommendations();
+    emit('video-feed-refreshed', syncPlayerState('feed-refresh'));
+  };
+  $('#load-more-comments').onclick = () => {
+    const ul = $('#comment-list');
+    const nextFloor = ul.children.length + 1;
+    const li = document.createElement('li');
+    li.setAttribute('role', 'listitem');
+    li.dataset.floor = String(nextFloor);
+    li.innerHTML = `<strong class="user">æ–°è§‚ä¼—${nextFloor}</strong>ï¼š<span class="content">æ–°å¢žå¼‚æ­¥è¯„è®ºç¬¬ ${nextFloor} æ¥¼</span> <span class="likes">ðŸ‘ ${10 + nextFloor}</span>`;
+    ul.append(li);
+    emit('video-comments-loaded', { count: ul.children.length });
+  };
+
+  $('#open-stacked-modals').onclick = () => {
+    $('#modal-layer-1').hidden = false;
+    $('#modal-layer-2').hidden = false;
+    emit('stacked-modals-opened');
+  };
+  $('#close-modal-2').onclick = () => {
+    $('#modal-layer-2').hidden = true;
+    emit('modal-layer-2-closed');
+  };
+  $('#close-modal-1').onclick = () => {
+    $('#modal-layer-1').hidden = true;
+    emit('modal-layer-1-closed');
+  };
+
+  if (search.get('modal') === '1') {
+    $('#modal-layer-1').hidden = false;
+  } else if (search.get('modal') === '2') {
+    $('#modal-layer-1').hidden = false;
+    $('#modal-layer-2').hidden = false;
+  }
+  syncPlayerState('init');
+</script>
+</html>
+

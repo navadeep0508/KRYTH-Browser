@@ -1,0 +1,228 @@
+﻿import type { RenderedRef } from "@browser-agent/vom";
+import { describe, expect, it } from "vitest";
+import type { CaptureVomMatchNode } from "@/tools/capture-vom-observation";
+import { ObservationNodeIndex, type RegisteredObservation } from "../recording/observation-capture";
+import { matchObservationTarget } from "../recording/target-matcher";
+
+function node(backendNodeId: number, frameId: string, x = 10): CaptureVomMatchNode {
+  return {
+    backendNodeId,
+    frameId,
+    tag: "button",
+    rect: { x, y: 20, w: 100, h: 30 },
+    localRect: { x, y: 20, w: 100, h: 30 },
+  };
+}
+
+function observation(
+  matchNodes: CaptureVomMatchNode[],
+  refs: RenderedRef[],
+): RegisteredObservation {
+  return {
+    stateId: "s1",
+    rootFrameId: "root",
+    index: new ObservationNodeIndex({ rootFrameId: "root", matchNodes, refs }),
+    url: "https://example.com",
+  };
+}
+
+describe("matchObservationTarget", () => {
+  it("indexes the safe geometry DTO without discarding frame-local geometry", () => {
+    const geometry = node(42, "child");
+    geometry.localRect = { x: 5, y: 6, w: 100, h: 30 };
+    const ref: RenderedRef = {
+      ref: "e1",
+      backendNodeId: 42,
+      frameId: "child",
+      line: 1,
+    };
+    const candidate = observation([geometry], [ref]).index.candidates("child", "button")[0];
+
+    expect(candidate).toEqual({ frameId: "child", geometry, ref });
+  });
+
+  it("matches a unique node using canonical top-level viewport geometry", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "root")],
+        [{ ref: "e1", backendNodeId: 42, role: "button", name: "å‘å¸ƒ", line: 1 }],
+      ),
+      hint: { geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" } },
+    });
+    expect(target).toEqual({ ref: "e1", role: "button", name: "å‘å¸ƒ" });
+  });
+
+  it("uses frame id with backend node id so sibling frames cannot collide", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "left"), node(42, "right")],
+        [
+          { ref: "e1", backendNodeId: 42, frameId: "left", line: 1 },
+          { ref: "e2", backendNodeId: 42, frameId: "right", line: 2 },
+        ],
+      ),
+      hint: {
+        frameId: "right",
+        geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" },
+      },
+    });
+    expect(target.ref).toBe("e2");
+  });
+
+  it("matches iframe capture geometry in the child viewport coordinate space", () => {
+    const child = node(42, "child", 410);
+    child.localRect = { x: 10, y: 20, w: 100, h: 30 };
+    const target = matchObservationTarget({
+      observation: observation(
+        [child],
+        [{ ref: "e1", backendNodeId: 42, frameId: "child", line: 1 }],
+      ),
+      hint: {
+        frameId: "child",
+        geometrySpace: "local",
+        geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" },
+      },
+    });
+    expect(target.ref).toBe("e1");
+  });
+
+  it("restricts a missing frame hint to the root frame", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "child")],
+        [{ ref: "e1", backendNodeId: 42, frameId: "child", line: 1 }],
+      ),
+      hint: { geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" } },
+      fallback: { tag: "button", name: "å‘å¸ƒ" },
+    });
+    expect(target).toEqual({ name: "å‘å¸ƒ", unmatched: true });
+  });
+
+  it("fails closed when the source Document has no VOM frame mapping", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "root")],
+        [{ ref: "e1", backendNodeId: 42, role: "button", name: "å‘å¸ƒ", line: 1 }],
+      ),
+      hint: {
+        frameId: null,
+        geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" },
+      },
+      fallback: { tag: "button", role: "button", name: "å‘å¸ƒ" },
+    });
+    expect(target).toEqual({ role: "button", name: "å‘å¸ƒ", unmatched: true });
+  });
+
+  it("returns unmatched for ambiguous geometry", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "root"), node(43, "root")],
+        [
+          { ref: "e1", backendNodeId: 42, line: 1 },
+          { ref: "e2", backendNodeId: 43, line: 2 },
+        ],
+      ),
+      hint: { geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" } },
+    });
+    expect(target.unmatched).toBe(true);
+  });
+
+  it("uses semantics when geometry is unavailable without crossing frame boundaries", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(41, "root"), node(42, "child")],
+        [
+          { ref: "e1", backendNodeId: 41, role: "button", name: "ä¿å­˜", line: 1 },
+          { ref: "e2", backendNodeId: 42, frameId: "child", role: "button", name: "ä¿å­˜", line: 2 },
+        ],
+      ),
+      hint: { frameId: "child" },
+      fallback: { tag: "button", role: "button", name: "ä¿å­˜" },
+    });
+    expect(target.ref).toBe("e2");
+  });
+
+  it("uses semantics to disambiguate equal geometry in one frame", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(42, "root"), node(43, "root")],
+        [
+          { ref: "e1", backendNodeId: 42, role: "button", name: "ä¿å­˜", line: 1 },
+          { ref: "e2", backendNodeId: 43, role: "button", name: "å–æ¶ˆ", line: 2 },
+        ],
+      ),
+      hint: { geometry: { rect: { x: 10, y: 20, w: 100, h: 30 }, tag: "button" } },
+      fallback: { tag: "button", role: "button", name: "å–æ¶ˆ" },
+    });
+    expect(target.ref).toBe("e2");
+  });
+
+  // The page scrolled, or the field changed size while it was typed in, after the observation.
+  const moved = { rect: { x: 10, y: 400, w: 100, h: 30 }, tag: "button" };
+
+  it("matches the only same-tag ref with the target's role and name when no rect matches", () => {
+    const target = matchObservationTarget({
+      observation: observation(
+        [node(41, "root"), node(42, "root", 200)],
+        [
+          { ref: "e1", backendNodeId: 41, role: "button", name: "ä¿å­˜", line: 1 },
+          { ref: "e2", backendNodeId: 42, role: "button", name: "å–æ¶ˆ", line: 2 },
+        ],
+      ),
+      hint: { geometry: moved },
+      fallback: { tag: "button", role: "button", name: "å–æ¶ˆ" },
+    });
+    expect(target).toEqual({ ref: "e2", role: "button", name: "å–æ¶ˆ" });
+  });
+
+  it("stays unmatched when no rect matches and the name is shared or missing", () => {
+    const twoSaves = observation(
+      [node(41, "root"), node(42, "root", 200)],
+      [
+        { ref: "e1", backendNodeId: 41, role: "button", name: "ä¿å­˜", line: 1 },
+        { ref: "e2", backendNodeId: 42, role: "button", name: "ä¿å­˜", line: 2 },
+      ],
+    );
+    expect(
+      matchObservationTarget({
+        observation: twoSaves,
+        hint: { geometry: moved },
+        fallback: { tag: "button", role: "button", name: "ä¿å­˜" },
+      }).unmatched,
+    ).toBe(true);
+
+    const oneButton = observation(
+      [node(41, "root")],
+      [{ ref: "e1", backendNodeId: 41, role: "button", line: 1 }],
+    );
+    expect(
+      matchObservationTarget({
+        observation: oneButton,
+        hint: { geometry: moved },
+        fallback: { tag: "button", role: "button" },
+      }).unmatched,
+    ).toBe(true);
+  });
+
+  it("does not use a name match from another frame or another tag when no rect matches", () => {
+    const refs = [
+      { ref: "e1", backendNodeId: 41, frameId: "child", role: "link", name: "ä¿å­˜", line: 1 },
+    ];
+    expect(
+      matchObservationTarget({
+        observation: observation([node(41, "child")], refs),
+        hint: { geometry: moved },
+        fallback: { tag: "button", role: "link", name: "ä¿å­˜" },
+      }).unmatched,
+    ).toBe(true);
+    expect(
+      matchObservationTarget({
+        observation: observation([node(41, "child")], refs),
+        hint: { frameId: "child", geometry: { ...moved, tag: "a" } },
+        fallback: { tag: "a", role: "link", name: "ä¿å­˜" },
+      }).unmatched,
+    ).toBe(true);
+  });
+});
+
+

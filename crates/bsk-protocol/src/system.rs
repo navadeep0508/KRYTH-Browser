@@ -1,0 +1,1051 @@
+﻿//! Non-tool protocol payloads (`system.handshake`, `system.ping`, `system.status`).
+
+use std::cmp::Ordering;
+
+use schemars::JsonSchema;
+use semver::Version;
+use serde::{Deserialize, Serialize};
+
+/// Outcome of comparing peer + local **protocol** versions during the
+/// `system.handshake` exchange (design Â§10, M10.4).
+///
+/// ```text
+///  protocol unparseable or major differs              â†’ Reject
+///  peer_protocol < our_min_compatible_protocol         â†’ Reject
+///  our_protocol  < peer_min_compatible_protocol      â†’ Reject (skipped when peer omits floor)
+///  peer_protocol != our_protocol (same major)        â†’ Skew  (warn but allow)
+///  otherwise                                         â†’ Ok
+/// ```
+///
+/// Application semvers (`HandshakeParams::version`, etc.) are **not**
+/// part of this decision â€” CLI and extension ship on independent
+/// version lines. Legacy `min_compatible_peer` is optional and ignored
+/// here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HandshakeCompat {
+    /// Protocol strings match exactly; no UX surface needs to flag skew.
+    Ok,
+    /// Same protocol major and both protocol floors satisfied, but the
+    /// full `protocol_version` strings differ (minor drift). Connection
+    /// is accepted; surfaces render "warn but allow".
+    Skew,
+    /// Connection must be refused. `reason` is a short
+    /// human-readable explanation suitable for the WS error frame.
+    Reject { reason: String },
+}
+
+/// Evaluate handshake compatibility using **protocol_version** only.
+///
+/// `peer_min_compatible_protocol = None` when the peer is a legacy build
+/// that predates the field â€” the "local below peer protocol floor" branch
+/// is skipped in that case.
+pub fn evaluate_handshake_compat(
+    peer_protocol_version: &str,
+    peer_min_compatible_protocol: Option<&str>,
+    our_protocol_version: &str,
+    our_min_compatible_protocol: &str,
+) -> HandshakeCompat {
+    let peer_major = parse_major(peer_protocol_version);
+    let our_major = parse_major(our_protocol_version);
+    if peer_major.is_none() || our_major.is_none() || peer_major != our_major {
+        return HandshakeCompat::Reject {
+            reason: format!(
+                "protocol major mismatch (peer={peer_protocol_version}, local={our_protocol_version})"
+            ),
+        };
+    }
+    match compare_protocol(peer_protocol_version, our_min_compatible_protocol) {
+        Some(Ordering::Less) => {
+            return HandshakeCompat::Reject {
+                reason: format!(
+                    "peer protocol {peer_protocol_version} is below local min_compatible_protocol {our_min_compatible_protocol}"
+                ),
+            };
+        }
+        None => {
+            return HandshakeCompat::Reject {
+                reason: format!("peer protocol version unparseable: {peer_protocol_version}"),
+            };
+        }
+        _ => {}
+    }
+    if let Some(peer_floor) = peer_min_compatible_protocol {
+        match compare_protocol(our_protocol_version, peer_floor) {
+            Some(Ordering::Less) => {
+                return HandshakeCompat::Reject {
+                    reason: format!(
+                        "local protocol {our_protocol_version} is below peer min_compatible_protocol {peer_floor}"
+                    ),
+                };
+            }
+            None => {
+                if parse_protocol_parts(our_protocol_version).is_none() {
+                    return HandshakeCompat::Reject {
+                        reason: format!(
+                            "local protocol version unparseable: {our_protocol_version}"
+                        ),
+                    };
+                }
+                return HandshakeCompat::Reject {
+                    reason: format!("peer min_compatible_protocol unparseable: {peer_floor}"),
+                };
+            }
+            _ => {}
+        }
+    }
+    if peer_protocol_version != our_protocol_version {
+        return HandshakeCompat::Skew;
+    }
+    HandshakeCompat::Ok
+}
+
+/// Parsed `(major, minor)` pair for a wire `protocol_version` string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ProtocolParts {
+    major: u64,
+    minor: u64,
+}
+
+/// Compare two protocol-version strings lexicographically on
+/// `(major, minor)`. Returns `None` when either side is unparseable.
+pub fn compare_protocol(a: &str, b: &str) -> Option<Ordering> {
+    let pa = parse_protocol_parts(a)?;
+    let pb = parse_protocol_parts(b)?;
+    Some(pa.major.cmp(&pb.major).then(pa.minor.cmp(&pb.minor)))
+}
+
+fn parse_protocol_parts(value: &str) -> Option<ProtocolParts> {
+    let major = parse_major(value)?;
+    let rest = value.split('.').nth(1);
+    let minor = match rest {
+        None | Some("") => 0,
+        Some(seg) => {
+            if seg.is_empty() || !seg.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            let n: u64 = seg.parse().ok()?;
+            if n > MAX_PROTOCOL_MAJOR {
+                return None;
+            }
+            n
+        }
+    };
+    Some(ProtocolParts { major, minor })
+}
+
+/// Upper bound the daemon will accept for the protocol-major field.
+///
+/// Matches JavaScript's `Number.MAX_SAFE_INTEGER` (`2^53 - 1 =
+/// 9_007_199_254_740_991`) so the daemon â†” extension parsers reject
+/// the *same* set of inputs (review round 5 I1). Without this cap a
+/// peer advertising e.g. `"18446744073709551615"` (u64::MAX) is
+/// accepted here as `Some(u64::MAX)` but rejected by the TS side's
+/// `!Number.isSafeInteger(...)` guard, violating "daemon accepts â‡’
+/// extension accepts". The TS side intentionally caps at MAX_SAFE_INTEGER
+/// to avoid silently rounding through `Number()`; pushing the daemon
+/// down to that same ceiling is far cheaper than teaching the extension
+/// to compare arbitrary-precision integers (which would force a
+/// rewrite of `compareSemver` and friends). In practice
+/// `protocol_version` only ever carries small values like `0` / `1`
+/// / `2`, so a cap at `2^53 - 1` has zero impact on real traffic.
+const MAX_PROTOCOL_MAJOR: u64 = (1u64 << 53) - 1;
+
+/// Extract the leading numeric major component from a protocol-version
+/// string such as `"1.0"` or `"1.0.0"`.
+///
+/// We deliberately do NOT use the bare `u64::from_str` accept set here:
+/// `u64::from_str("+1")` returns `Ok(1)` because the std-lib parser is
+/// happy to peel off a leading `+`. For a *wire* field that's the wrong
+/// trade-off â€” the TypeScript extension's `parseProtocolMajor`
+/// (`apps/extension/src/lib/semver.ts`) is built around `/^\d+$/` and
+/// rejects any non-digit prefix. To keep "both peers reach the same
+/// verdict" as a hard contract (review round 4 I1), the Rust side has
+/// to be equally strict: take the segment before the first `.`, then
+/// require it to be a non-empty run of ASCII digits before delegating
+/// the actual parse. Without this guard a peer advertising `"+1.0"`
+/// would be accepted by the daemon and rejected by the extension â€”
+/// the same asymmetry round 3 fought on the app-version axis.
+///
+/// Round 5 I1 closes the last remaining accept-set gap on the upper
+/// bound: after the digit guard passes and `head.parse::<u64>()`
+/// succeeds, we also refuse values strictly above
+/// [`MAX_PROTOCOL_MAJOR`] (= `Number.MAX_SAFE_INTEGER`). This
+/// matches the TS side's `!Number.isSafeInteger(n)` reject so the
+/// `MAX_SAFE_INTEGER < n <= u64::MAX` band (which `u64::from_str`
+/// would otherwise happily accept) is rejected on both peers.
+pub(crate) fn parse_major(value: &str) -> Option<u64> {
+    let head = value.split('.').next()?;
+    if head.is_empty() || !head.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let n: u64 = head.parse().ok()?;
+    if n > MAX_PROTOCOL_MAJOR {
+        return None;
+    }
+    Some(n)
+}
+
+#[cfg(test)]
+mod parse_major_tests {
+    //! Round 4 I1: lock the *exact* accept set of `parse_major` so the
+    //! daemon's verdict on the protocol-major field is bit-for-bit
+    //! identical to the extension's `parseProtocolMajor` (see
+    //! `apps/extension/src/lib/__tests__/semver.test.ts`). Any input
+    //! the daemon accepts here must be accepted by the extension; any
+    //! input the daemon rejects must round-trip to `null` over there.
+    //! These cases mirror the extension test names so a future
+    //! contributor who edits one side will see the matching coverage
+    //! on the other.
+    use super::parse_major;
+
+    #[test]
+    fn rejects_explicit_plus_sign() {
+        // `u64::from_str("+1") = Ok(1)` in std; we MUST refuse so the
+        // daemon's verdict matches the extension's `/^\d+$/` reject.
+        assert_eq!(parse_major("+1"), None);
+        assert_eq!(parse_major("+1.0"), None);
+    }
+
+    #[test]
+    fn rejects_explicit_minus_sign() {
+        // `u64::from_str("-1")` already fails in std (u64 is unsigned),
+        // but we still pin the behaviour through the new strict path
+        // so it can't accidentally drift if the function is refactored.
+        assert_eq!(parse_major("-1"), None);
+        assert_eq!(parse_major("-1.0"), None);
+    }
+
+    #[test]
+    fn rejects_leading_whitespace() {
+        assert_eq!(parse_major(" 1"), None);
+        assert_eq!(parse_major(" 1.0"), None);
+        assert_eq!(parse_major("\t1.0"), None);
+    }
+
+    #[test]
+    fn rejects_empty_input() {
+        assert_eq!(parse_major(""), None);
+    }
+
+    #[test]
+    fn rejects_empty_leading_segment() {
+        // `split('.').next()` returns `Some("")` for `".1"`, which our
+        // emptiness guard must catch.
+        assert_eq!(parse_major(".1"), None);
+    }
+
+    #[test]
+    fn rejects_trailing_non_digit_characters() {
+        // Pre-fix `u64::from_str("1x")` already fails, but pin both
+        // shapes so the strict guard is locked.
+        assert_eq!(parse_major("1x"), None);
+    }
+
+    #[test]
+    fn rejects_scientific_notation() {
+        assert_eq!(parse_major("1e3"), None);
+    }
+
+    #[test]
+    fn rejects_non_numeric_leading_segment() {
+        assert_eq!(parse_major("x.0"), None);
+    }
+
+    #[test]
+    fn accepts_leading_zeros() {
+        // `u64::from_str("01")` already accepts leading zeros; the TS
+        // side does the same (`/^\d+$/.test("01")` && `Number("01") =
+        // 1`). Lock the behaviour so a future tightening doesn't
+        // diverge silently.
+        assert_eq!(parse_major("01"), Some(1));
+        assert_eq!(parse_major("01.0"), Some(1));
+    }
+
+    #[test]
+    fn accepts_single_segment() {
+        assert_eq!(parse_major("1"), Some(1));
+        assert_eq!(parse_major("123"), Some(123));
+    }
+
+    #[test]
+    fn accepts_canonical_two_segment() {
+        assert_eq!(parse_major("1.0"), Some(1));
+    }
+
+    #[test]
+    fn accepts_canonical_three_segment() {
+        assert_eq!(parse_major("1.0.0"), Some(1));
+    }
+
+    #[test]
+    fn ignores_trailing_segments() {
+        // Confirms the `split('.').next()` semantics: anything past
+        // the first `.` is irrelevant, including shapes the minor
+        // segment alone could not parse.
+        assert_eq!(parse_major("1."), Some(1));
+        assert_eq!(parse_major("1.x"), Some(1));
+    }
+
+    #[test]
+    fn accepts_value_at_max_safe_integer() {
+        // 2^53 - 1 = 9_007_199_254_740_991 is the upper bound both
+        // peers agree on (review round 5 I1). It round-trips through
+        // `Number()` losslessly on the TS side, so the daemon must
+        // accept it here too.
+        assert_eq!(parse_major("9007199254740991"), Some(9_007_199_254_740_991));
+    }
+
+    #[test]
+    fn rejects_value_above_max_safe_integer() {
+        // Round 5 I1: previously the daemon accepted any `u64::from_str`
+        // value all the way up to `u64::MAX`, which the TS side's
+        // `!Number.isSafeInteger` guard would reject. Cap at
+        // `Number.MAX_SAFE_INTEGER` to keep parser verdicts symmetric.
+        // - MAX_SAFE_INTEGER + 1 (2^53 = 9_007_199_254_740_992):
+        assert_eq!(parse_major("9007199254740992"), None);
+        // - u64::MAX itself (a valid u64 but well above the cap):
+        assert_eq!(parse_major("18446744073709551615"), None);
+    }
+
+    #[test]
+    fn rejects_value_above_u64_max() {
+        // u64::MAX + 1 (21 digits). The strict ASCII-digit guard
+        // lets it through to `head.parse()` which errors with overflow â€”
+        // we get `None`, never a wraparound.
+        assert_eq!(parse_major("18446744073709551616"), None);
+        // And a much larger value (23 digits) still fails cleanly.
+        assert_eq!(parse_major("99999999999999999999999"), None);
+    }
+}
+
+#[cfg(test)]
+mod compare_protocol_tests {
+    use super::*;
+
+    #[test]
+    fn equal_protocols() {
+        assert_eq!(compare_protocol("1.0", "1.0"), Some(Ordering::Equal));
+    }
+
+    #[test]
+    fn minor_ordering() {
+        assert_eq!(compare_protocol("1.1", "1.0"), Some(Ordering::Greater));
+        assert_eq!(compare_protocol("1.0", "1.1"), Some(Ordering::Less));
+    }
+
+    #[test]
+    fn major_only_treated_as_zero_minor() {
+        assert_eq!(compare_protocol("1", "1.0"), Some(Ordering::Equal));
+    }
+
+    #[test]
+    fn unparseable_returns_none() {
+        assert_eq!(compare_protocol("oops", "1.0"), None);
+        assert_eq!(compare_protocol("1.0", "1.x"), None);
+    }
+}
+
+#[cfg(test)]
+mod compat_tests {
+    use super::*;
+
+    #[test]
+    fn ok_when_protocol_strings_match() {
+        let outcome = evaluate_handshake_compat("1.0", Some("1.0"), "1.0", "1.0");
+        assert_eq!(outcome, HandshakeCompat::Ok);
+    }
+
+    #[test]
+    fn skew_when_same_major_different_minor() {
+        let outcome = evaluate_handshake_compat("1.1", Some("1.0"), "1.0", "1.0");
+        assert_eq!(outcome, HandshakeCompat::Skew);
+    }
+
+    #[test]
+    fn skew_when_peer_minor_newer() {
+        let outcome = evaluate_handshake_compat("1.0", Some("1.0"), "1.1", "1.0");
+        assert_eq!(outcome, HandshakeCompat::Skew);
+    }
+
+    #[test]
+    fn reject_when_peer_below_protocol_floor() {
+        let outcome = evaluate_handshake_compat("0.9", Some("0.5"), "1.0", "1.0");
+        assert!(matches!(outcome, HandshakeCompat::Reject { .. }));
+    }
+
+    #[test]
+    fn reject_when_self_below_peer_protocol_floor() {
+        let outcome = evaluate_handshake_compat("1.0", Some("1.5"), "1.0", "1.0");
+        match outcome {
+            HandshakeCompat::Reject { reason } => assert!(
+                reason.contains("local protocol") && reason.contains("min_compatible_protocol"),
+                "reason: {reason}"
+            ),
+            other => panic!("expected reject, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reject_when_peer_protocol_floor_unparseable_reports_peer_floor() {
+        let outcome = evaluate_handshake_compat("1.0", Some("not-a-protocol"), "1.0", "1.0");
+        match outcome {
+            HandshakeCompat::Reject { reason } => assert!(
+                reason.contains("peer min_compatible_protocol")
+                    && reason.contains("not-a-protocol"),
+                "reason: {reason}"
+            ),
+            other => panic!("expected reject, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ok_when_peer_protocol_floor_absent() {
+        let outcome = evaluate_handshake_compat("1.0", None, "1.0", "1.0");
+        assert_eq!(outcome, HandshakeCompat::Ok);
+    }
+
+    #[test]
+    fn reject_when_protocol_major_differs() {
+        let outcome = evaluate_handshake_compat("2.0", Some("1.0"), "1.0", "1.0");
+        assert!(matches!(outcome, HandshakeCompat::Reject { .. }));
+    }
+
+    #[test]
+    fn reject_when_protocol_string_unparseable() {
+        let outcome = evaluate_handshake_compat("oops", Some("1.0"), "1.0", "1.0");
+        assert!(matches!(outcome, HandshakeCompat::Reject { .. }));
+    }
+
+    #[test]
+    fn app_version_drift_does_not_affect_verdict() {
+        // CLI 0.1.0 â†” extension 9.9.9 with matching protocol â†’ Ok
+        let outcome = evaluate_handshake_compat("1.0", Some("1.0"), "1.0", "1.0");
+        assert_eq!(outcome, HandshakeCompat::Ok);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BrowserPeerInfo {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct HandshakeParams {
+    pub client: String,
+    #[schemars(with = "String")]
+    pub version: Version,
+    /// Logical protocol revision (for example `"1.0"`), independent of SemVer app releases.
+    pub protocol_version: String,
+    pub instance_id: String,
+    pub browser: BrowserPeerInfo,
+    pub label: String,
+    /// **Deprecated** â€” legacy app-semver floor kept for wire compat with
+    /// pre-protocol peers. New code sends `"0.0.0"` and ignores on read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub min_compatible_peer: Option<Version>,
+    /// Lowest peer **protocol** version this side accepts (e.g. `"1.0"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_compatible_protocol: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct HandshakeResult {
+    pub server: String,
+    #[schemars(with = "String")]
+    pub version: Version,
+    pub protocol_version: String,
+    /// **Deprecated** â€” legacy app-semver floor. New peers should use
+    /// `min_compatible_protocol`; this field is optional and ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub min_compatible_peer: Option<Version>,
+    /// Lowest peer protocol version this daemon accepts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_compatible_protocol: Option<String>,
+}
+
+/// Current handshake envelope. The flattened identity remains source-compatible
+/// with older Rust callers constructing `HandshakeParams` directly.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct HandshakeRequest {
+    #[serde(flatten)]
+    pub identity: HandshakeParams,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audit_enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct HandshakeResponse {
+    #[serde(flatten)]
+    pub identity: HandshakeResult,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audit_version: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audit_ready: Option<bool>,
+}
+
+#[cfg(test)]
+mod handshake_payload_tests {
+    use super::*;
+
+    #[test]
+    fn handshake_result_deserializes_without_legacy_min_compatible_peer() {
+        let result: HandshakeResult = serde_json::from_value(serde_json::json!({
+            "server": "browser-agent-daemon",
+            "version": "0.1.0",
+            "protocol_version": "1.0",
+            "min_compatible_protocol": "1.0"
+        }))
+        .expect("legacy app-semver floor is optional in new handshake results");
+
+        assert_eq!(result.min_compatible_peer, None);
+        assert_eq!(result.min_compatible_protocol.as_deref(), Some("1.0"));
+    }
+}
+
+/// `system.ping` request payload. Empty (the response carries `pong`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PingParams {}
+
+/// `system.ping` response payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PingResult {
+    pub pong: bool,
+}
+
+/// Snapshot of a single connected extension (extension client view).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct BrowserStatusEntry {
+    /// Stable id assigned by the extension; matches `HandshakeParams::instance_id`.
+    pub instance_id: String,
+    pub browser_name: String,
+    pub browser_version: String,
+    pub extension_version: String,
+    pub label: String,
+    pub session_count: u32,
+    /// Unix epoch milliseconds at which the extension completed the
+    /// daemon handshake. Stable across reconnects only via the
+    /// best-effort registry generation; clients should treat this as a
+    /// rough "online since" hint, not a strong identity.
+    #[serde(default)]
+    pub connected_at_ms: i64,
+    /// `true` when the browser's `protocol_version` differs from the
+    /// daemon's (same major, minor drift). Connection is still allowed.
+    #[serde(default)]
+    pub version_skew: bool,
+    /// Protocol version the extension advertised at handshake.
+    #[serde(default)]
+    pub extension_protocol_version: String,
+    /// The socket is still registered, but a call failed after this
+    /// heartbeat-capable extension missed two heartbeats. Cleared when any
+    /// frame arrives.
+    #[serde(default)]
+    pub unresponsive: bool,
+}
+
+/// Snapshot of a single live session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SessionStatusEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controller: Option<crate::tools::ControllerInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interaction: Option<crate::tools::InteractionPolicy>,
+    pub session_id: String,
+    pub browser_instance_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_window_id: Option<i64>,
+    /// Unix epoch milliseconds.
+    pub created_at_ms: i64,
+}
+
+/// `system.status` request payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StatusParams {
+    /// When set, the daemon polls the browser registry for up to this many
+    /// milliseconds before returning a snapshot. Only applies while zero
+    /// browsers are registered; an existing connection returns immediately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_for_browser_ms: Option<u64>,
+}
+
+/// `browser.list` request payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserListParams {
+    /// When set, the daemon polls the browser registry for up to this many
+    /// milliseconds before returning a list. Only applies while zero browsers
+    /// are registered; an existing connection returns immediately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_for_browser_ms: Option<u64>,
+}
+
+/// One entry per connected browser whose protocol version drifts from
+/// the daemon's (same major). Surfaced in `system.status` for
+/// `bsk status` / `bsk doctor` / popup "warn but allow" UX.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct VersionSkewEntry {
+    pub instance_id: String,
+    pub browser_name: String,
+    pub label: String,
+    /// Daemon app semver at snapshot time (informational).
+    pub server_version: String,
+    /// Extension app semver at snapshot time (informational).
+    pub client_version: String,
+    /// Daemon `protocol_version` at snapshot time.
+    #[serde(default)]
+    pub server_protocol_version: String,
+    /// Extension `protocol_version` from handshake.
+    #[serde(default)]
+    pub client_protocol_version: String,
+}
+
+/// `system.status` reply: daemon meta + connected browsers + live sessions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StatusResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_auth: Option<LocalAuthStatus>,
+    /// Semver of the daemon binary (`env!("CARGO_PKG_VERSION")`).
+    pub daemon_version: String,
+    /// Logical protocol revision (e.g. `"1.0"`).
+    pub protocol_version: String,
+    /// Daemon process id.
+    pub pid: u32,
+    /// Daemon uptime in whole seconds.
+    pub uptime_secs: u64,
+    /// WS port the daemon listens on for extension clients.
+    pub ws_port: u16,
+    /// Absolute path of the IPC socket / named pipe handle.
+    pub sock_path: String,
+    /// Snapshot of connected extension clients.
+    pub browsers: Vec<BrowserStatusEntry>,
+    /// Snapshot of live sessions.
+    pub sessions: Vec<SessionStatusEntry>,
+    /// Subset of `browsers` whose `protocol_version` differs from the
+    /// daemon's (minor drift, same major). Entries mirror
+    /// `BrowserStatusEntry.version_skew`.
+    #[serde(default)]
+    pub version_skew_browsers: Vec<VersionSkewEntry>,
+    /// True when the daemon's local IPC listener supports the out-of-band
+    /// `IpcEnvelope` (`meta` header) in addition to legacy `"2.0"` `_`-prefixed
+    /// scope fields. Omitted when false so pre-envelope `"2.0"` daemons
+    /// deserialize as `false` without bumping `PROTOCOL_VERSION`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ipc_envelope: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LocalAuthStatus {
+    pub mode: String,
+    pub paired_devices: usize,
+    pub last_unpaired_attempt: Option<UnpairedAttempt>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct UnpairedAttempt {
+    pub at: String,
+    pub extension_version: Option<String>,
+}
+
+/// `browser.list` response payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct BrowserListResult {
+    pub browsers: Vec<BrowserStatusEntry>,
+}
+
+// ---------------------------------------------------------------------------
+// Daemon session lifecycle (`session.*`)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DaemonSessionStartParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controller: Option<crate::tools::ControllerInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incognito: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_instance_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_name: Option<String>,
+    /// Null placeholder tolerated when callers share a payload builder with
+    /// `session.start_tracked`; non-null values require `session.start_tracked`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    /// Deprecated legacy CLI override accepted and ignored so browser policy governs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unattended: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DaemonSessionStartTrackedParams {
+    pub request_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controller: Option<crate::tools::ControllerInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incognito: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_instance_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_name: Option<String>,
+    /// Deprecated legacy CLI override accepted and ignored so browser policy governs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unattended: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DaemonSessionStartResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interaction: Option<crate::tools::InteractionPolicy>,
+    pub session_id: String,
+    pub browser_instance_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_window_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionRequestAction {
+    #[default]
+    Status,
+    Prepare,
+    Cancel,
+    Claim,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionRequestState {
+    Prepared,
+    Starting,
+    Ready,
+    Active,
+    Cancelling,
+    Closed,
+    CleanupFailed,
+    Failed,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SessionRequestParams {
+    pub request_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<SessionRequestAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SessionRequestResult {
+    pub request_id: String,
+    pub state: SessionRequestState,
+    #[serde(default)]
+    pub session: Option<SessionStatusEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cleanup_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DaemonSessionStopParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub all: bool,
+    #[serde(default)]
+    pub recording: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DaemonSessionStopAllParams {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DaemonSessionStopFailure {
+    pub session_id: String,
+    pub code: crate::ErrorCode,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DaemonSessionStopResult {
+    pub stopped: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<DaemonSessionStopFailure>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub returned_tab_ids: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub return_failures: Vec<crate::tools::ReturnFailure>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SessionListParams {}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SessionListResult {
+    pub sessions: Vec<SessionStatusEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SessionRunLogParams {
+    pub session_id: String,
+}
+
+/// Stable element description shared between recipe VOM matching and `session.run_log`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LoggedTarget {
+    pub role: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctx: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum LoggedStep {
+    /// An explicit navigation. A query string may hold data, so only its presence is kept.
+    Navigate {
+        origin: Option<String>,
+        path: Option<String>,
+        dropped_query: bool,
+    },
+    Action {
+        action: String,
+        target: LoggedTarget,
+        element: String,
+        /// The observation this ref first appeared in.
+        first_seen: u32,
+        /// How many option values a select chose, never which.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        values: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        modifiers: Option<Vec<crate::tools::KeyModifier>>,
+        /// The first heading of the page it acted on.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        heading: Option<String>,
+        #[serde(default)]
+        sensitive: bool,
+    },
+    /// The caller waited for a condition here, so the page changed in between.
+    Wait,
+    /// An action a recipe cannot hold.
+    Skipped { method: String, reason: String },
+    /// An action whose effect is not known.
+    Uncertain { method: String },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RunLog {
+    pub steps: Vec<LoggedStep>,
+    pub observations: u32,
+    /// Steps were dropped after the bound.
+    pub truncated: bool,
+    pub borrowed_tabs: Vec<i64>,
+}
+
+// ---------------------------------------------------------------------------
+// Intent WAL (`ledger.request`)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum IntentState {
+    Dispatched,
+    Settled,
+    Unknown,
+    Reconciled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LedgerEntry {
+    pub operation_id: String,
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_id: Option<i64>,
+    pub method: String,
+    pub target_summary: String,
+    pub state: IntentState,
+    pub dispatched_at: String,
+    pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reconciled_by: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LedgerStatusReply {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    pub frozen: bool,
+    pub pending_unknown: Vec<LedgerEntry>,
+    pub recent: Vec<LedgerEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LedgerResolveReply {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    pub resolved_count: usize,
+    pub resolved: Vec<LedgerEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LedgerRequestParams {
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum LedgerRequestResult {
+    Status(LedgerStatusReply),
+    Resolve(LedgerResolveReply),
+}
+
+// ---------------------------------------------------------------------------
+// Operation audit (`audit.request`)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditEvent {
+    pub at: i64,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditRun {
+    pub id: String,
+    pub browser_id: String,
+    pub session_id: String,
+    pub started_at: i64,
+    pub recorded_at: i64,
+    pub updated_at: i64,
+    pub status: String,
+    pub name: Option<String>,
+    pub site: Option<String>,
+    pub operations: usize,
+    pub errors: usize,
+    pub partial: bool,
+}
+
+/// Inbound WS request from extension UI (`audit.request`).
+/// Extra fields (such as untrusted `browser_id`) are ignored by the daemon,
+/// which always scopes queries to the authenticated WS peer identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditRequestParams {
+    #[serde(default)]
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum AuditRequestResult {
+    List {
+        runs: Vec<AuditRun>,
+        total: usize,
+        enabled: bool,
+        #[serde(default)]
+        error: Option<String>,
+        directory: String,
+        retention_days: u32,
+    },
+    Get {
+        run: AuditRun,
+        events: Vec<AuditEvent>,
+        total: usize,
+        pending_operations: Vec<String>,
+        #[serde(default)]
+        error: Option<String>,
+    },
+    Configure {
+        enabled: bool,
+        directory: String,
+        retention_days: u32,
+    },
+    Deleted {
+        deleted: bool,
+    },
+    Opened {
+        opened: bool,
+    },
+}
+
+#[cfg(test)]
+mod status_compat_tests {
+    use super::*;
+
+    #[test]
+    fn status_result_deserializes_legacy_version_skew_entries_without_protocol_fields() {
+        let status: StatusResult = serde_json::from_value(serde_json::json!({
+            "daemon_version": "0.1.0",
+            "protocol_version": "1.0",
+            "pid": 42,
+            "uptime_secs": 7,
+            "ws_port": 52700,
+            "sock_path": "/tmp/bsk.sock",
+            "browsers": [],
+            "sessions": [],
+            "version_skew_browsers": [{
+                "instance_id": "legacy-browser",
+                "browser_name": "chrome",
+                "label": "Legacy",
+                "server_version": "0.1.0",
+                "client_version": "0.0.9"
+            }]
+        }))
+        .expect("new CLI must tolerate old daemon skew payloads");
+
+        let skew = status
+            .version_skew_browsers
+            .first()
+            .expect("legacy skew entry should deserialize");
+        assert_eq!(skew.server_protocol_version, "");
+        assert_eq!(skew.client_protocol_version, "");
+        assert!(
+            !status.ipc_envelope,
+            "pre-envelope StatusResult payloads must default ipc_envelope to false"
+        );
+        let round_trip = serde_json::to_value(&status).expect("StatusResult serializes");
+        assert!(
+            round_trip.get("ipc_envelope").is_none(),
+            "false ipc_envelope must be omitted on wire: {round_trip}"
+        );
+    }
+}
+

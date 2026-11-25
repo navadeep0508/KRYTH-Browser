@@ -1,0 +1,1173 @@
+﻿[
+  {
+    "id": "ENV-CANDIDATE",
+    "kind": "workflow",
+    "page_type": "environment",
+    "goal": "è®°å½•æµ‹è¯•ç›®çš„ã€å€™é€‰åˆ†æ”¯/å®Œæ•´SHA/dirtyçŠ¶æ€åŠå¯å¤æŸ¥æºç ã€CLIäºŒè¿›åˆ¶/æ‰©å±•å…¨æ–‡ä»¶å“ˆå¸Œã€æ‰©å±•ç‹¬ç«‹åç§°/IDã€Chrome/åè®®/buildã€‚ä»¥status+browsers+debug capabilitiesè¯æ˜ŽåŒä¸€å€™é€‰æž„å»ºï¼›PRè‡ªæµ‹åŒ…å«å½“å‰åˆ†æ”¯æ”¹åŠ¨ï¼Œä¸å¯åªæµ‹æœªå«æ”¹åŠ¨çš„mainã€‚æµ‹è¯•å®‰è£…æŒ‰ç”¨æˆ·çº¦å®šä¿ç•™ã€‚",
+    "required_commands": ["status", "browsers", "debug capabilities", "doctor"]
+  },
+  {
+    "id": "LIFE-SESSION",
+    "kind": "workflow",
+    "page_type": "lifecycle",
+    "goal": "æ˜¾å¼ browser å¯åŠ¨/åˆ—å‡º sessionï¼Œæ£€æŸ¥éš”ç¦» Agent Windowï¼Œrequest ä¼šè¯æƒé™è·¯å¾„åŠè¾¹ç•Œï¼›ç»“æŸåªåœæ­¢æœ¬è½® sessionï¼Œç¡®è®¤æ— é—ç•™ã€‚",
+    "required_commands": ["session start", "session list", "session request", "session stop"]
+  },
+  {
+    "id": "LIFE-TABS",
+    "kind": "workflow",
+    "page_type": "lifecycle",
+    "goal": "åˆ›å»ºä¸¤ä¸ªä»»åŠ¡æ ‡ç­¾â†’åˆ—å‡ºâ†’åˆ‡æ¢â†’å…³é—­è‡ªå»ºå­é¡µï¼›å€Ÿç”¨ä¸“ä¸ºæœ¬è½®åˆ›å»ºçš„æ™®é€šæ ‡ç­¾â†’æ“ä½œâ†’å½’è¿˜ï¼Œæ ¸å¯¹åŽŸçª—å£/æ ‡ç­¾çŠ¶æ€ã€‚ä¸å¾—å€Ÿç”¨æˆ·å…¶ä»–å·¥ä½œé¡µã€‚",
+    "required_commands": [
+      "tab create",
+      "tab list",
+      "tab select",
+      "tab close",
+      "tab borrow",
+      "tab return"
+    ]
+  },
+  {
+    "id": "COOP-TARGET",
+    "kind": "workflow",
+    "page_type": "cooperation",
+    "goal": "target ä¼šè¯æ‰§è¡Œ enable/status/sync/waitï¼Œä¿å­˜åŽŸå§‹ observation_id/contextï¼Œç¨³å®šè¾“å…¥è¿žç»­ä¸¤æ¬¡åˆæ³•æ“ä½œã€‚æ— éœ€é¡µé¢å˜åŒ–çš„ç­‰å¾…ä¸å¾—æŽ’é˜Ÿé”æ­»ã€‚",
+    "required_commands": [
+      "cooperate enable",
+      "cooperate status",
+      "cooperate sync",
+      "cooperate wait",
+      "fill"
+    ]
+  },
+  {
+    "id": "COOP-STRICT",
+    "kind": "workflow",
+    "page_type": "cooperation",
+    "goal": "ç‹¬ç«‹ strict ä¼šè¯ï¼šæ¯æ­¥é‡æ–° sync å†åŠ¨ä½œï¼›ä¸€æ¬¡æˆåŠŸæ“ä½œåŽå¤ç”¨æ—§ context åº”æ‹’ç»ï¼Œè´Ÿä¾‹ç‹¬ç«‹å½’ NEG-STRICTï¼›ä¸åœ¨åŒä¸€ä¼šè¯åˆ‡æ¢æ”¿ç­–ã€‚",
+    "required_commands": ["cooperate sync", "click"]
+  },
+  {
+    "id": "NEG-STRICT",
+    "kind": "workflow",
+    "page_type": "cooperation",
+    "goal": "å·²æ¶ˆè´¹ strict context çš„å†æ¬¡åŠ¨ä½œæ˜Žç¡®æ‹’ç»ï¼ŒéªŒè¯ reason/code/effect_state å’Œ once è®¡æ•°æœªå¢žåŠ ã€‚",
+    "required_commands": ["click"],
+    "negative": true
+  },
+  {
+    "id": "NEG-RECYCLED",
+    "kind": "workflow",
+    "page_type": "dynamic-guard",
+    "goal": "ä¿å­˜ row 42 ç›®æ ‡åŠ expectï¼Œç„¶åŽé€šè¿‡ fixture è‡ªå¸¦ recycle æŒ‰é’®å˜æˆ 99ï¼›æ—§ä¸šåŠ¡æ„å›¾å¿…é¡»è¢«æ‹’ç»ï¼Œ/events ä¸å¾—å‡ºçŽ°è¯¯ä¿å­˜ 99ã€‚",
+    "required_commands": ["click"],
+    "negative": true
+  },
+  {
+    "id": "NEG-COVERED",
+    "kind": "workflow",
+    "page_type": "dynamic-guard",
+    "goal": "è¢«å¯è§é®æŒ¡å±‚è¦†ç›–çš„æŒ‰é’®åº”æ‹’ç»ï¼Œè¯æ˜Žæœªè§¦å‘å¤„ç†å™¨ï¼›ç§»é™¤é®æŒ¡åŽçš„æˆåŠŸå•åˆ— FORM-BASICã€‚",
+    "required_commands": ["click"],
+    "negative": true
+  },
+  {
+    "id": "NEG-STALE",
+    "kind": "workflow",
+    "page_type": "dynamic-guard",
+    "goal": "æ–‡æ¡£æˆ–ç›®æ ‡æ›¿æ¢åŽä½¿ç”¨æ—§ ref/context åº”æŒ‰åˆåŒæ‹’ç»ï¼›æ ¸å¯¹æœªäº§ç”Ÿå‰¯ä½œç”¨ï¼Œä¸èƒ½ä»…å‡­éžé›¶é€€å‡ºã€‚",
+    "required_commands": ["click"],
+    "negative": true
+  },
+  {
+    "id": "FORM-BASIC",
+    "kind": "workflow",
+    "page_type": "forms",
+    "goal": "workbench/minimalï¼šä¸­æ–‡ emoji å¼•å·æ¢è¡Œè¾“å…¥/textarea/æ¸…ç©º/contenteditableï¼›checkbox/radioã€single/multi-selectï¼ŒçœŸå®žæäº¤å¹¶æ ¸å¯¹ DOM+æœåŠ¡å™¨äº‹ä»¶ exact value/countï¼›åŒæ—¶è¦†ç›– ref å’Œ CSS ç›®æ ‡ã€‚",
+    "required_commands": ["fill", "press", "click", "select", "focus", "blur"]
+  },
+  {
+    "id": "FORM-TEMPORAL",
+    "kind": "workflow",
+    "page_type": "forms",
+    "goal": "extraï¼šdate/time ç§’/datetime-local/month/week äº”ç§è¾“å…¥é€é¡¹å¡«å…¥åˆæ³•å€¼å¹¶æäº¤ï¼Œäº”å€¼å‡ç²¾ç¡®åŒ¹é…ï¼›ä¸èƒ½æ”¹ type æˆ–é€šè¿‡ evaluate ä»£å¡«ã€‚",
+    "required_commands": ["fill", "click"]
+  },
+  {
+    "id": "FORM-FOCUS",
+    "kind": "workflow",
+    "page_type": "forms",
+    "goal": "extraï¼šfocusâ†’é”®å…¥â†’blurï¼Œæ ¸å¯¹ç„¦ç‚¹ã€input/change/focus/blur äº‹ä»¶ä¸Žä¿å­˜å€¼ã€‚",
+    "required_commands": ["focus", "press", "blur", "click"]
+  },
+  {
+    "id": "FORM-READONLY",
+    "kind": "workflow",
+    "page_type": "forms",
+    "goal": "readonly/disabled åœ¨ observation ä¸­è¯­ä¹‰æ˜Žç¡®ï¼Œå€¼ä¿æŒä¸å˜ï¼›maxlength è¾“å…¥çš„æœ€ç»ˆå€¼æŒ‰æµè§ˆå™¨åˆåŒæˆªæ–­æˆ–æ˜Žç¡®æ‹’ç»ã€‚ç¦æ­¢æŠ¥å‘ŠæˆåŠŸå´æ— å€¼ã€‚",
+    "required_commands": ["observe", "snapshot"]
+  },
+  {
+    "id": "WIDGETS",
+    "kind": "workflow",
+    "page_type": "widgets",
+    "goal": "workbenchï¼šhover èœå•ã€slider/æ‹–æ‹½/æ»šåŠ¨å®¹å™¨ï¼Œæ£€æŸ¥ hover å¯è§é¡¹åŠæ‹–åŽä½ç½®/ä¸šåŠ¡è¾“å‡ºï¼Œå« refâ†’ref å’Œç›¸å¯¹åç§»ä¸¤ç§ dragã€‚",
+    "required_commands": ["hover", "drag", "wheel", "scroll-to"]
+  },
+  {
+    "id": "NAV-NATIVE",
+    "kind": "workflow",
+    "page_type": "navigation",
+    "goal": "pointer-semantic/minimalï¼šclick ä¸Ž Enter åˆ†åˆ«è§¦å‘åŽŸç”Ÿé“¾æŽ¥ï¼Œæ ¸å¯¹æœ€ç»ˆ URL/æ­£æ–‡/ä¸€æ¬¡äº‹ä»¶ï¼›navigate back/forward ä¸Žæ—§ aliases å‡è¿”å›žé¢„æœŸé¡µï¼Œreload åŽå¯ç»§ç»­æ“ä½œã€‚",
+    "required_commands": [
+      "navigate",
+      "navigate back",
+      "navigate forward",
+      "navigate-back",
+      "navigate-forward",
+      "reload",
+      "click",
+      "press"
+    ]
+  },
+  {
+    "id": "NAV-WAIT",
+    "kind": "workflow",
+    "page_type": "navigation",
+    "goal": "ç‹¬ç«‹é¡µä¸Šçš„å»¶è¿Ÿå¯¼èˆªã€DOMContentLoaded/load/commit ç­‰æ”¯æŒé˜¶æ®µæŒ‰å¸®åŠ©é€é¡¹æµ‹è¯•ï¼ŒéªŒè¯ URL ä¸Žæœ€ç»ˆé¡µé¢å†…å®¹ï¼Œæœªè§¦å‘å¯¼èˆªçš„è´Ÿä¾‹ç‹¬ç«‹è®°å½•ã€‚",
+    "required_commands": ["wait-for-navigation", "navigate"]
+  },
+  {
+    "id": "NEG-WAIT-ELEMENT",
+    "kind": "workflow",
+    "page_type": "navigation",
+    "goal": "ä¸å­˜åœ¨å…ƒç´ ç­‰å¾…è¿”å›ž satisfied:falseï¼ˆå¯èƒ½ exit 0ï¼‰ï¼Œæ£€æŸ¥çœŸå®žè¾“å‡ºå­—æ®µï¼›ä¸èƒ½å½“æˆæ­£ä¾‹ç­‰å¾…æˆåŠŸã€‚",
+    "required_commands": ["wait-for-element"],
+    "negative": true,
+    "check_effect": false,
+    "allow_zero_rejection": true
+  },
+  {
+    "id": "WAIT-DYNAMIC",
+    "kind": "workflow",
+    "page_type": "dynamic-dom",
+    "goal": "extra çš„èŠ‚ç‚¹æ›¿æ¢ visible/hiddenï¼ŒåŠ ä¸Š attached/detached å’Œ edgecases delayed enabledï¼›é€é¡¹ç¡®è®¤å®žé™…æ»¡è¶³æ¡ä»¶ï¼Œtimeout satisfied:false ä¸ç®—æ­£ä¾‹é€šè¿‡ã€‚",
+    "required_commands": ["wait-for-element", "wait-ms", "step"]
+  },
+  {
+    "id": "NEG-INVALID",
+    "kind": "workflow",
+    "page_type": "cli-contract",
+    "goal": "æ— æ•ˆå‚æ•°/ç©ºæ–‡ä»¶è·¯å¾„åœ¨è¾“å…¥å‰æ‹’ç»ï¼Œreason/action phase/effect_state å¯è§£é‡Šï¼›æœ¬åœ°æ ¡éªŒå¤±è´¥ä¸åº”ä½¿åŽŸåˆæ³• context å¤±æ•ˆã€‚",
+    "required_commands": ["upload"],
+    "negative": true,
+    "check_effect": false
+  },
+  {
+    "id": "OBS-READ",
+    "kind": "workflow",
+    "page_type": "semantic-dom",
+    "goal": "workbench/minimalï¼šsnapshotã€observeã€syncã€get-html å…¨é¡µ/å…ƒç´ ï¼›è¯­ä¹‰å«çœŸå®žæ ‡ç­¾/å€¼/çŠ¶æ€ï¼Œæ— è„šæœ¬/CSS åžƒåœ¾ï¼›view saved.json/find æ˜¯æœ¬åœ°è¯»å–ä¸”ä¸åˆ·æ–° refã€‚",
+    "required_commands": ["snapshot", "observe", "cooperate sync", "view", "get-html"]
+  },
+  {
+    "id": "SHADOW-OPEN",
+    "kind": "workflow",
+    "page_type": "shadow-dom",
+    "goal": "workbench å’Œ pointer-semantic çš„ open Shadow/Litï¼šè§‚æµ‹å¹¶æ“ä½œçœŸå®žæŽ§ä»¶ï¼Œæ–‡æœ¬ä¸æŽº comments/styleï¼Œexact business value/handler åŒ¹é…ã€‚",
+    "required_commands": ["snapshot", "observe", "fill", "click", "get-html"]
+  },
+  {
+    "id": "SHADOW-CLOSED",
+    "kind": "workflow",
+    "page_type": "shadow-dom",
+    "goal": "edgecases closed shadowï¼šæ£€æŸ¥èƒ½åŠ›è¾¹ç•ŒåŠå¯è§æ„ŸçŸ¥ï¼›åœ¨æ”¯æŒçš„è§†è§‰è·¯å¾„ç‚¹å‡»å¹¶éªŒè¯äº‹ä»¶ï¼Œä¸èƒ½å£°ç§° DOM ref å¯ç©¿é€ closed rootã€‚ä¸å¯æ‰§è¡Œåˆ™ blockedã€‚",
+    "required_commands": ["observe", "screenshot", "click"]
+  },
+  {
+    "id": "FRAME-SAME",
+    "kind": "workflow",
+    "page_type": "iframe",
+    "goal": "workbench åŒæº iframe ä¸­å‘çŽ°/å¡«å†™/æäº¤/æŠ½è¡¨ï¼Œæ ¸å¯¹ frame source ä¸ŽæœåŠ¡å™¨ frame-save host/valueã€‚",
+    "required_commands": ["observe", "fill", "click", "extract table"]
+  },
+  {
+    "id": "FRAME-CROSS",
+    "kind": "workflow",
+    "page_type": "iframe",
+    "goal": "workbench localhost è·¨æº iframe ä¸Ž 127.0.0.1 ä¸»é¡µé¢ï¼šæŒ‰å®žé™… frame è¯æ®æ“ä½œã€æå–ï¼Œæ ¸å¯¹å­—æ®µæœªæ··å…¥ä¸»æ–‡æ¡£ã€‚",
+    "required_commands": ["observe", "fill", "click", "extract table"]
+  },
+  {
+    "id": "FRAME-REPLACE",
+    "kind": "workflow",
+    "page_type": "iframe",
+    "goal": "extra refresh-frame åªåˆ·æ–°å­æ–‡æ¡£åŽï¼Œä¸»æ–‡æ¡£åˆæ³•ç›®æ ‡ä»æŒ‰åˆåŒå¯ç”¨ï¼›å­æ–‡æ¡£æ—§ refs æ‹’ç»å½’ç‹¬ç«‹è´Ÿä¾‹ï¼Œä¸æ··ç”¨ä¸¤ç±» epochã€‚",
+    "required_commands": ["cooperate sync", "click"]
+  },
+  {
+    "id": "DATA-TABLE",
+    "kind": "workflow",
+    "page_type": "structured-data",
+    "goal": "workbench/minimal çœŸå®žè¡¨æ ¼ï¼šdiscoverâ†’tableï¼›ç²¾ç¡®è¡Œæ•°ã€åˆ—å¤´ã€ä¸­æ–‡é‡‘é¢/é“¾æŽ¥ã€source/frame éªŒè¯ï¼Œå¹¶æ ¸å¯¹ç­›é€‰/åˆ†é¡µçŠ¶æ€ã€‚",
+    "required_commands": ["extract discover", "extract table", "get-html"]
+  },
+  {
+    "id": "DATA-LIST",
+    "kind": "workflow",
+    "page_type": "structured-data",
+    "goal": "å¡ç‰‡/åˆ—è¡¨ discoverâ†’listï¼Œæ£€æŸ¥æ¯æ¡æ ‡é¢˜/é“¾æŽ¥/å›¾ç‰‡å…³ç³»ï¼Œä¸èƒ½æŠŠé¡µé¢æ‚é¡¹æ··ä¸ºä¸€æ¡ï¼Œä¿ç•™ provenanceã€‚",
+    "required_commands": ["extract discover", "extract list"]
+  },
+  {
+    "id": "VISUAL-SCREEN",
+    "kind": "workflow",
+    "page_type": "visual",
+    "goal": "æˆªå›¾ viewport/full-page/element/canvas å››ç§ï¼ŒéªŒè¯ PNG å¯æ‰“å¼€ã€å°ºå¯¸/è£å‰ª/ç›®æ ‡å†…å®¹æ­£ç¡®ï¼Œé•¿é¡µåˆ°åº•åŽæˆªå›¾ä»å®Œæ•´ã€‚",
+    "required_commands": ["screenshot"],
+    "required_argv": [
+      {
+        "command": "screenshot",
+        "args": ["--full-page"]
+      }
+    ]
+  },
+  {
+    "id": "VISUAL-CANVAS",
+    "kind": "workflow",
+    "page_type": "canvas",
+    "goal": "canvas-test å…ˆæˆªå›¾å®šä½å†è§†è§‰åæ ‡ç‚¹ç»¿è‰²ç›®æ ‡ï¼ŒéªŒè¯ç½‘é¡µäº‹ä»¶/è¾“å‡ºï¼Œä¸¤ä¸ª canvas åˆ†åˆ«æµ‹è¯•ï¼›DOM ref ä¸èƒ½æ›¿ä»£ canvas å†…ç›®æ ‡ã€‚",
+    "required_commands": ["observe", "screenshot", "click"]
+  },
+  {
+    "id": "VISUAL-OVERLAY",
+    "kind": "workflow",
+    "page_type": "visual",
+    "goal": "pointer-semantic å›ºå®šå³ä¸‹/å·¦ä¸‹ CTA å’ŒåŽŸç”Ÿåª’ä½“å³ä¾§ controlsï¼šBrowser Agent è‡ªèº«æµ®å±‚ä¸èƒ½æŒ¡ç‚¹å‡»/æ»šåŠ¨/resize åŽç›®æ ‡ã€‚",
+    "required_commands": ["click", "window resize", "screenshot"]
+  },
+  {
+    "id": "LONG-SCROLL",
+    "kind": "workflow",
+    "page_type": "long-page",
+    "goal": "workbench long/extra äºŒç»´æ»šåŠ¨ï¼šwheel æ­£è´Ÿã€æ¨ªå‘ã€nestedã€scroll-to far cornerï¼ŒéªŒè¯ scrollTop/Left å’Œæœ€ç»ˆç›®æ ‡å¯è§ã€‚",
+    "required_commands": ["wheel", "scroll-to", "screenshot"]
+  },
+  {
+    "id": "MOBILE",
+    "kind": "workflow",
+    "page_type": "responsive",
+    "goal": "emulate ä½¿ç”¨å¸®åŠ©æ”¯æŒçš„è®¾å¤‡æˆ–è‡ªå®šä¹‰ UA/viewport/touchï¼Œresize ä¸¤å°ºå¯¸ï¼›æ ¸å¯¹å®žé™… viewport/DPR/UA/è§¦æ‘¸ä¸Žäº¤äº’ï¼Œå†æŒ‰åˆåŒæ¢å¤æœ¬è½®é¡µã€‚",
+    "required_commands": ["emulate", "window resize", "evaluate", "screenshot"]
+  },
+  {
+    "id": "FILE-UPLOAD",
+    "kind": "workflow",
+    "page_type": "files",
+    "goal": "å•æ–‡ä»¶/å¤šæ–‡ä»¶/ä¸­æ–‡è·¯å¾„/ç©ºæ–‡ä»¶/éšè— input è§¦å‘/æ˜¾å¼ drop targetï¼›é€šè¿‡ Bsk upload åŽæ ¸å¯¹æµè§ˆå™¨ files åç§°/size/hash/äº‹ä»¶æ¥æºï¼Œä¸ä½¿ç”¨ JS æž„é€  File ä»£ä¼ ã€‚",
+    "required_commands": ["upload", "click"]
+  },
+  {
+    "id": "FILE-DOWNLOAD",
+    "kind": "workflow",
+    "page_type": "files",
+    "goal": "download æœ¬åœ° CSV ä¿å­˜åˆ°æ–°è·¯å¾„ï¼Œæ ¸å¯¹ UTF-8 æ–‡ä»¶å/å†…å®¹/sha256 ä¸ŽæœåŠ¡ç«¯ download äº‹ä»¶ï¼Œartifact ä¸ä»…å­˜åœ¨è¿˜è¦ exact bytesã€‚",
+    "required_commands": ["download"]
+  },
+  {
+    "id": "NEG-OUTPUT-EXISTS",
+    "kind": "workflow",
+    "page_type": "files",
+    "goal": "å·²æœ‰è¾“å‡ºè·¯å¾„çš„ download/video/export æŒ‰åˆåŒæ˜Žç¡®æ‹’ç»ä¸”æ–‡ä»¶ hash ä¸å˜ï¼Œcode ä¸ä¸º nullï¼Œæ¢å¤æç¤ºå¯¹åº”å®žé™…é”™è¯¯ã€‚è‡³å°‘è¦†ç›– downloadã€‚",
+    "required_commands": ["download"],
+    "negative": true,
+    "check_effect": false
+  },
+  {
+    "id": "DEBUG-NETWORK",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "debug start å‰åŽæŽ§åˆ¶è¯·æ±‚ï¼šæˆåŠŸã€500 consumed/ignoredã€å»¶è¿Ÿã€é‡å¤ã€é‡å®šå‘ï¼›network/console å’Œ debug request metadata/request/response/headers/timingã€body pointer/redaction/æˆªæ–­åˆ†é¡µé€é¡¹æ ¸å¯¹ã€‚",
+    "required_commands": [
+      "debug start",
+      "debug status",
+      "debug requests",
+      "debug request",
+      "network",
+      "console",
+      "debug console",
+      "debug pages"
+    ]
+  },
+  {
+    "id": "DEBUG-ANALYSIS",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "performance/aggregate/duplicates å¯¹ç…§å·²çŸ¥è¯·æ±‚æ•°/slow é˜ˆå€¼/é‡å¤çª—å£ï¼›é»˜è®¤ä¸Ž include-controlled ç»“æžœè§£é‡Šä¸€è‡´ï¼Œæ— é™é»˜ä¸¢å¤±ã€‚",
+    "required_commands": ["debug performance", "debug aggregate", "debug duplicates"]
+  },
+  {
+    "id": "DEBUG-RULES",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "ä»… fixture è¯·æ±‚ï¼šè§„åˆ™ addâ†’listâ†’disableâ†’enableâ†’one-match å‘½ä¸­â†’removeï¼ŒéªŒè¯å“åº”/å‘½ä¸­æ¬¡æ•°ï¼›é‡æ”¾åªè¯» synthetic GETï¼Œç”¨å”¯ä¸€ key ä¸¤æ¬¡æ ¸å¯¹åªå‘ä¸€æ¬¡ã€‚",
+    "required_commands": [
+      "debug rule_add",
+      "debug rules",
+      "debug rule_disable",
+      "debug rule_enable",
+      "debug rule_remove",
+      "debug replay"
+    ]
+  },
+  {
+    "id": "DEBUG-OPS",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "debug operations/operation/activity/wait/pin/unpinï¼šç”¨çœŸå®ž command_id/request_idï¼Œwait åªç­‰åŽŸæ“ä½œä¸é‡å‘ï¼Œsession ç©ºé—²å’Œè¿è¡Œä¸­å‡éªŒè¯ã€‚",
+    "required_commands": [
+      "debug operations",
+      "debug operation",
+      "debug activity",
+      "debug wait",
+      "debug pin",
+      "debug unpin"
+    ]
+  },
+  {
+    "id": "DEBUG-RETENTION",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "extra burst 260ï¼Œè¯·æ±‚åˆ—è¡¨èµ°å®Œæ‰€æœ‰ cursorsï¼›debug stop è®¡æ•°ä¸Ž exportã€å®žé™…æœåŠ¡å™¨ distinct è¯·æ±‚æ•°ä¸€è‡´ï¼Œä¸å¾—ä»¥é»˜è®¤åˆ†é¡µä¸Šé™å½“æ€»é‡ã€‚",
+    "required_commands": ["debug requests", "debug stop", "debug export"]
+  },
+  {
+    "id": "DEBUG-SOURCE",
+    "kind": "workflow",
+    "page_type": "debugging",
+    "goal": "æœ¬è½® Agent çš„ click/upload/download debug æ“ä½œæ¥æºå¿…é¡»ä¸º agentï¼›çœŸæ­£äººç±»è¾“å…¥å•ç‹¬ç¡®è®¤ humanï¼Œä¸èƒ½ç”¨ä»£ç†äº‹ä»¶æ¨¡æ‹ŸçœŸäººã€‚",
+    "required_commands": ["debug operations", "upload", "download"]
+  },
+  {
+    "id": "DIALOG-ALERT",
+    "kind": "workflow",
+    "page_type": "native-dialog",
+    "goal": "workbench alertï¼šè§¦å‘â†’statusâ†’acceptâ†’operation await åŽŸ operationï¼Œç¡®è®¤åªæ‰§è¡Œä¸€æ¬¡ä¸”ä¿å­˜è¿”å›žç»“æžœã€‚",
+    "required_commands": ["dialog status", "dialog accept", "operation await", "click"],
+    "allow_dialog_pending": true
+  },
+  {
+    "id": "DIALOG-CONFIRM",
+    "kind": "workflow",
+    "page_type": "native-dialog",
+    "goal": "confirm accept ä¸Ž dismiss ä¸¤æ”¯ï¼Œæ ¸å¯¹é¡µé¢å¸ƒå°”ç»“æžœå’Œ operation final stateã€‚",
+    "required_commands": ["dialog accept", "dialog dismiss", "operation await", "click"],
+    "allow_dialog_pending": true
+  },
+  {
+    "id": "DIALOG-PROMPT",
+    "kind": "workflow",
+    "page_type": "native-dialog",
+    "goal": "prompt æ–‡æœ¬/å–æ¶ˆä¸Ž beforeunload ç¦»å¼€/åœç•™æŒ‰å¸®åŠ©æ”¯æŒè·¯å¾„é€é¡¹éªŒè¯ã€‚ç¼º beforeunload fixture æ—¶åˆ›å»ºåˆæˆé¡µå†ç”± Bsk æ‰“å¼€ï¼Œä¸èƒ½çœç•¥ã€‚",
+    "required_commands": ["dialog accept", "dialog dismiss", "navigate"],
+    "allow_dialog_pending": true
+  },
+  {
+    "id": "DIALOG-CANCEL",
+    "kind": "workflow",
+    "page_type": "native-dialog",
+    "goal": "ç‹¬ç«‹æ“ä½œæŒ‚èµ·â†’operation cancelï¼Œç¡®è®¤å–æ¶ˆä¸è‡ªåŠ¨ç»§ç»­è¾“å…¥ã€ä¸é‡å¤ once è®¡æ•°ï¼Œå¼‚æ­¥ alert å¯æŸ¥è¯¢ã€‚",
+    "required_commands": ["operation cancel", "dialog status"],
+    "allow_dialog_pending": true
+  },
+  {
+    "id": "VIDEO-BASELINE",
+    "kind": "workflow",
+    "page_type": "media",
+    "goal": "media baseline MP4ï¼šåŽŸç”ŸæŽ§ä»¶ play/pause/seekï¼Œevaluate åªè¯»éªŒè¯ currentTime/paused/duration/readyStateï¼›æˆªå›¾ç¡®è®¤çœŸå®žè§†é¢‘å†…å®¹ã€‚",
+    "required_commands": ["click", "evaluate", "screenshot"]
+  },
+  {
+    "id": "VIDEO-RECORD",
+    "kind": "workflow",
+    "page_type": "media",
+    "goal": "canvas-test æ–°å½•åˆ¶ï¼šstartâ†’statusâ†’stopâ†’listâ†’saveï¼›æ–° MP4 éžç©ºä¸”å¯è§£ç /å¸§æ•°æ—¶é•¿åˆç†ï¼Œå†æ”¾å…¥æœ¬è½® fixtures/new-video.mp4 ç”¨ new-media ç» Bsk æ’­æ”¾éªŒè¯ï¼›å¦å½•ä¸€æ®µ discardï¼ŒçŠ¶æ€/æ®‹ç•™æ­£ç¡®ã€‚",
+    "required_commands": [
+      "video start",
+      "video status",
+      "video stop",
+      "video list",
+      "video save",
+      "video discard"
+    ]
+  },
+  {
+    "id": "CAROUSEL-LOCAL",
+    "kind": "workflow",
+    "page_type": "carousel",
+    "goal": "æœ¬åœ° /carousel æŒç»­400msåˆ‡æ¢ï¼Œç¦æ­¢æš‚åœï¼š3æ¬¡ fresh syncâ†’åªè¯» evaluate å‡æˆåŠŸä¸”æœ‰çœŸå®ž slide/image å˜åŒ–ï¼›éšåŽå¡« stable-input/save æ— é”™ç‚¹ï¼Œæ ¸å¯¹äº‹ä»¶ã€‚ å¦åšä¸€æ¬¡è‡ªç„¶è§„åˆ’å»¶è¿Ÿå¯¹ç…§ï¼šsync åŽé€šè¿‡ Bsk wait-ms è·¨è¶Šä¸€æ¬¡å¯è¯æ˜Žçš„è½®æ’­åˆ‡æ¢ï¼Œå†ç”¨åŽŸ receipt åªè¯» evaluateï¼›ä¿å­˜ guard ç»“æžœã€‚æ‹’ç»æ—¶æ­¤æ­£å‘åœºæ™¯ä¸é€šè¿‡ï¼ŒæŠ¥å‘ŠåŒºåˆ†åˆåŒå†…ä¿å®ˆé™åˆ¶ä¸Žå®žçŽ°åå·®ï¼Œä¸èƒ½æ”¹æˆè´Ÿä¾‹æ´—æˆ100%ã€‚",
+    "required_commands": ["cooperate sync", "evaluate", "screenshot", "fill", "click"],
+    "required_command_counts": {
+      "evaluate": 4
+    }
+  },
+  {
+    "id": "CAROUSEL-CONTROL",
+    "kind": "workflow",
+    "page_type": "carousel",
+    "goal": "å•ç‹¬ /carousel æš‚åœæŒ‰é’®æŽ§åˆ¶ç»„ï¼Œè®°å½•æš‚åœå‰åŽ slideï¼›å¯¹ç…§ active ç»“æžœä¸èƒ½æ›¿ä»£ active å¿…æµ‹é¡¹ã€‚",
+    "required_commands": ["click", "evaluate"]
+  },
+  {
+    "id": "PUBLIC-OCEAN-CAROUSEL",
+    "kind": "workflow",
+    "page_type": "public-carousel",
+    "goal": "https://www.oceanengine.com/ï¼šæŒ‰ public-sites.md éªŒè¯è½®æ’­æŒç»­å˜åŒ–æ—¶3æ¬¡ fresh syncâ†’evaluateï¼Œä¿å­˜å…¨éƒ¨ guard/DOM/è§†è§‰è¯æ®ã€‚ å¦åšä¸€æ¬¡è‡ªç„¶è§„åˆ’å»¶è¿Ÿå¯¹ç…§ï¼šsync åŽé€šè¿‡ Bsk wait-ms è·¨è¶Šä¸€æ¬¡å¯è¯æ˜Žçš„è½®æ’­åˆ‡æ¢ï¼Œå†ç”¨åŽŸ receipt åªè¯» evaluateï¼›ä¿å­˜ guard ç»“æžœã€‚æ‹’ç»æ—¶æ­¤æ­£å‘åœºæ™¯ä¸é€šè¿‡ï¼ŒæŠ¥å‘ŠåŒºåˆ†åˆåŒå†…ä¿å®ˆé™åˆ¶ä¸Žå®žçŽ°åå·®ï¼Œä¸èƒ½æ”¹æˆè´Ÿä¾‹æ´—æˆ100%ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "evaluate",
+      "observe",
+      "screenshot",
+      "get-html"
+    ],
+    "required_command_counts": {
+      "evaluate": 4
+    }
+  },
+  {
+    "id": "PUBLIC-OCEAN-NAV",
+    "kind": "workflow",
+    "page_type": "public-carousel",
+    "goal": "å·¨é‡å¼•æ“Žï¼šå…¬å¼€å¯¼èˆª/ä¸‹æ‹‰/è½®æ’­å‰åŽæˆ–æŒ‡ç¤ºå™¨/æ»šåŠ¨/å…¬å¼€äº§å“é¡µæµè§ˆ/è¿”å›žï¼Œæ ¡éªŒç›®æ ‡æ ‡é¢˜å’Œ URLï¼›ä¸æäº¤é”€å”®çº¿ç´¢ã€‚",
+    "required_commands": ["hover", "click", "wheel", "navigate back"]
+  },
+  {
+    "id": "PUBLIC-TAOBAO-CAROUSEL",
+    "kind": "workflow",
+    "page_type": "image-commerce",
+    "goal": "å‡ºçŽ°å¯å…³é—­ç™»å½•å±‚å…ˆç”¨ Bsk å®šä½å…³é—­ iconâ†’clickâ†’fresh sync éªŒè¯ modal æ¶ˆå¤±ï¼Œå†ç»§ç»­ï¼›ä¸èƒ½ä»…å› å‡ºçŽ°å¼¹å±‚è·³è¿‡ã€‚https://www.taobao.com/ï¼šåŒæ ·3æ¬¡ active carousel evaluateï¼Œæ–°é²œ receipt+çœŸå®ž slide å˜åŒ–ã€‚ä¸å¯ç”¨æ·˜å®ç™»å½•é¡µå½“ä¸»é¡µæµ‹è¯•é€šè¿‡ã€‚ å¦åšä¸€æ¬¡è‡ªç„¶è§„åˆ’å»¶è¿Ÿå¯¹ç…§ï¼šsync åŽé€šè¿‡ Bsk wait-ms è·¨è¶Šä¸€æ¬¡å¯è¯æ˜Žçš„è½®æ’­åˆ‡æ¢ï¼Œå†ç”¨åŽŸ receipt åªè¯» evaluateï¼›ä¿å­˜ guard ç»“æžœã€‚æ‹’ç»æ—¶æ­¤æ­£å‘åœºæ™¯ä¸é€šè¿‡ï¼ŒæŠ¥å‘ŠåŒºåˆ†åˆåŒå†…ä¿å®ˆé™åˆ¶ä¸Žå®žçŽ°åå·®ï¼Œä¸èƒ½æ”¹æˆè´Ÿä¾‹æ´—æˆ100%ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "evaluate",
+      "observe",
+      "screenshot",
+      "get-html",
+      "click"
+    ],
+    "required_command_counts": {
+      "evaluate": 4
+    }
+  },
+  {
+    "id": "PUBLIC-TAOBAO-CARDS",
+    "kind": "workflow",
+    "page_type": "image-commerce",
+    "goal": "å‡ºçŽ°å¯å…³é—­ç™»å½•å±‚å…ˆç”¨ Bsk å®šä½å…³é—­ iconâ†’clickâ†’fresh sync éªŒè¯ modal æ¶ˆå¤±ï¼Œå†ç»§ç»­ï¼›ä¸èƒ½ä»…å› å‡ºçŽ°å¼¹å±‚è·³è¿‡ã€‚æ·˜å®è‡³å°‘10ä¸ªå½“å‰å¯è§å•†å“æ ‡é¢˜/å›¾ç‰‡/å±•ç¤ºä»·/é“¾æŽ¥å…³ç³»æ­£ç¡®ï¼Œ2æ‰¹æ»šåŠ¨éªŒè¯ lazy-load naturalWidth/src/srcsetï¼›è¿›å…¥ä¸€æ¡å…¬å¼€è¯¦æƒ…å†è¿”å›žï¼Œæ— æ”¶è—/è®¢å•ã€‚",
+    "required_commands": [
+      "extract discover",
+      "extract list",
+      "wheel",
+      "scroll-to",
+      "click",
+      "navigate back",
+      "evaluate"
+    ]
+  },
+  {
+    "id": "PUBLIC-MDN",
+    "kind": "workflow",
+    "page_type": "documentation",
+    "goal": "MDN ä¸­æ–‡ä¸»é¡µæœç´¢â†’ç»“æžœâ†’å…·ä½“æ–‡æ¡£â†’è¿”å›žï¼Œæ ¸å¯¹æœç´¢è¯/æœ€ç»ˆ h1/URL/ä»£ç æ­£æ–‡ï¼Œé•¿æ–‡æ»šåŠ¨ä¸Žæˆªå›¾ã€‚",
+    "required_commands": ["navigate", "fill", "press", "click", "observe", "get-html", "scroll-to"]
+  },
+  {
+    "id": "PUBLIC-GITHUB",
+    "kind": "workflow",
+    "page_type": "public-spa",
+    "goal": "GitHub /Browser Agent çœŸå®ž SPA ä»“åº“å¯¼èˆª/README/å…¬å¼€æ–‡ä»¶â†’è¿”å›žï¼Œç­‰å¾…æœ€ç»ˆå†…å®¹ï¼Œä¸ä»¥ä¸­é—´éª¨æž¶ç®—æˆåŠŸã€‚",
+    "required_commands": ["navigate", "click", "wait-for-element", "get-html", "observe"]
+  },
+  {
+    "id": "PUBLIC-BOOKS",
+    "kind": "workflow",
+    "page_type": "public-pagination",
+    "goal": "Books to Scrape è‡³å°‘2é¡µå…±40æ¡åŽ»é‡ä¹¦å/price/é“¾æŽ¥ï¼ŒéªŒè¯åˆ†é¡µå‰åŽ URL å’ŒåŒä¸€å¡ç‰‡å­—æ®µå¯¹åº”ã€å›¾ç‰‡å·²åŠ è½½ã€‚",
+    "required_commands": ["navigate", "extract list", "click", "evaluate"]
+  },
+  {
+    "id": "PUBLIC-HN",
+    "kind": "workflow",
+    "page_type": "public-list",
+    "goal": "Hacker News é¦–é¡µ30æ¡æŽ’å/æ ‡é¢˜/é“¾æŽ¥/è¯„åˆ†(é¡µé¢å®žé™…æœ‰çš„å­—æ®µ)ï¼Œæ ¸å¯¹ç¼ºå¤±å­—æ®µä¸ä¸²è¡Œï¼Œæ‰“å¼€ä¸€æ¡å…¬å¼€è®¨è®ºå¹¶è¿”å›žã€‚",
+    "required_commands": ["navigate", "extract list", "click", "navigate back"]
+  },
+  {
+    "id": "HUMAN-HANDOFF",
+    "kind": "workflow",
+    "page_type": "human-cooperation",
+    "goal": "ä¸“ç”¨åˆæˆé¡µ request-helpâ†’çœŸå®žç”¨æˆ·è¾“å…¥/å®Œæˆâ†’cooperate waitâ†’fresh syncï¼›ç”¨æˆ·æŽ¥ç®¡æœŸé—´ Agent æ— è¾“å…¥ï¼Œè¶…æ—¶ä¸è‡ªåŠ¨è§£é™¤ã€‚æ— äººå‚ä¸Žåˆ™ blockedï¼Œä¸è®¸ä¼ªé€ ã€‚",
+    "required_commands": ["request-help", "cooperate wait", "cooperate sync"]
+  },
+  {
+    "id": "HUMAN-RECORD",
+    "kind": "workflow",
+    "page_type": "human-cooperation",
+    "goal": "record start åŽçœŸå®žç”¨æˆ·å®Œæˆåˆæˆä¸­æ–‡è¾“å…¥/ç‚¹å‡»â†’record stopï¼Œtrace.json æ–‡æœ¬/é¡ºåº/ç›®æ ‡/æ¥æºåŒ¹é…ï¼›Agent è‡ªå·±æ‰§è¡Œä¸èƒ½å†’å……ç”¨æˆ·åŠ¨ä½œã€‚",
+    "required_commands": ["record start", "record stop"]
+  },
+  {
+    "id": "ADMIN-LIFECYCLE",
+    "kind": "workflow",
+    "page_type": "admin",
+    "goal": "éš”ç¦» admin-runtime ä¸Žç‹¬ç«‹ç«¯å£å®žé™… start/status/logs/restart/stopï¼Œå† server mode pair/devices/revoke ä¸´æ—¶è®¾å¤‡ï¼›ä¸èƒ½é‡å¯ç”¨æˆ·å…±äº«æˆ–æµ‹è¯•æµè§ˆå™¨ runtimeã€‚é…å¯¹ token ä»…æœ¬åœ°ä¿å­˜ï¼ŒæŠ¥å‘Šè„±æ•ã€‚",
+    "required_commands": [
+      "daemon start",
+      "status",
+      "logs",
+      "daemon restart",
+      "daemon stop",
+      "daemon pair",
+      "daemon devices",
+      "daemon revoke"
+    ]
+  },
+  {
+    "id": "ADMIN-TOOLS",
+    "kind": "workflow",
+    "page_type": "admin",
+    "goal": "update --check ä¸Ž install-skill --list çœŸå®žæ‰§è¡Œå¹¶æ ¡éªŒç»“æž„/æ–‡æ¡ˆ/ç›®æ ‡ã€‚æ— éœ€æ›´æ–°å€™é€‰æˆ–è¦†ç›–ä»»ä½•ç”¨æˆ·æŠ€èƒ½ï¼›å®‰è£…/æ›´æ–°å†™å…¥è·¯å¾„å¦‚éœ€å¦æµ‹å¿…é¡»éš”ç¦»ã€‚",
+    "required_commands": ["update", "install-skill", "help"]
+  },
+  {
+    "id": "MCP-PARITY",
+    "kind": "workflow",
+    "page_type": "mcp",
+    "goal": "æœ¬å€™é€‰ bsk mcp stdio initialize/tools/listï¼Œæ¯ä¸ª advertised tool åŠå…¶ schema çš„ action/mode æžšä¸¾åˆ†æ”¯ æŒ‰å½“å‰ schema åšæˆåŠŸè°ƒç”¨ï¼›å‚æ•°/é”™è¯¯/cancel parityã€é•¿æ“ä½œå’Œæ˜¾å¼ browser ç»‘å®šï¼›ä¿ç•™å…¥å‡º NDJSON ä¸Žæ¯ä¸ª request idã€‚shell ä»…é©±åŠ¨ stdioï¼Œä¸ç”¨å…¶ä»–æµè§ˆå™¨ MCPã€‚",
+    "required_commands": ["mcp"]
+  },
+  {
+    "id": "FINAL-CLEANUP",
+    "kind": "workflow",
+    "page_type": "lifecycle",
+    "goal": "æ‰€æœ‰æœ¬è½® sessionã€debugã€å½•åˆ¶ã€pair grant å·²æŒ‰åˆåŒç»“æŸï¼Œä»»åŠ¡ tab å·²å½’è¿˜ï¼›æµ‹è¯•ç‰ˆæ‰©å±•/CLI/å›ºå®šå®‰è£…ç›®å½•ä¿ç•™ï¼Œåˆ—å‡ºå¯äººå·¥æµ‹è¯•å…¥å£ã€‚",
+    "required_commands": ["session list", "status", "browsers"]
+  },
+  {
+    "id": "DYNAMIC-SECOND-EVALUATE",
+    "kind": "workflow",
+    "page_type": "per-second-dynamic",
+    "goal": "/live-updateï¼š1000msæ–‡å­—/æ—¶é—´/ä»·æ ¼æŒç»­æ›´æ–°ï¼Œ3æ¬¡å³æ—¶fresh syncâ†’åªè¯»evaluateï¼ŒåŠ 1æ¬¡syncåŽè·¨è‡³å°‘ä¸¤æ¬¡æ›´æ–°çš„è§„åˆ’å»¶è¿Ÿæ±‚å€¼ï¼›æ ¡éªŒtick/æ—¶é—´é€’å¢žã€è®°å½•42ä»·æ ¼ä¸Žtickå…¬å¼ä¸€è‡´ã€‚å››æ¬¡å‡éœ€å†…éƒ¨ok:trueåŠä¸šåŠ¡å€¼æ­£ç¡®ï¼›ä¸æš‚åœæˆ–é‡åŒæ­¥æ›¿æ¢å»¶è¿Ÿç»„åŽŸreceiptã€‚",
+    "required_commands": ["cooperate sync", "evaluate"],
+    "required_command_counts": {
+      "evaluate": 4
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "DYNAMIC-SECOND-WHEEL",
+    "kind": "workflow",
+    "page_type": "per-second-dynamic",
+    "goal": "/live-updateï¼šæ›´æ–°æŒç»­è¿è¡Œæ—¶åˆ†åˆ«æµ‹è¯•é¡µé¢å‘ä¸‹/å‘ä¸Šã€æŒ‡å®šnestedå®¹å™¨çºµå‘/æ¨ªå‘wheelï¼›æ¯æ¬¡å‰åŽè®°å½•tickã€scrollY/scrollTop/scrollLeftã€wheeläº‹ä»¶åŠæˆªå›¾ï¼Œç¡®è®¤çœŸå®žæ»šåŠ¨ä¸”æœªå†»ç»“æ›´æ–°ï¼›å«ä¸€æ¬¡syncåŽè·¨è‡³å°‘ä¸¤æ¬¡æ›´æ–°å†wheelçš„è§„åˆ’å»¶è¿Ÿå˜ä½“ã€‚",
+    "required_commands": ["cooperate sync", "evaluate", "wheel"],
+    "required_command_counts": {
+      "wheel": 4,
+      "evaluate": 8
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "CAROUSEL-EVALUATE-DRIFT",
+    "kind": "workflow",
+    "page_type": "carousel",
+    "goal": "/carouselï¼š400msè½®æ’­æŒç»­è¿è¡Œï¼Œ3æ¬¡å³æ—¶fresh syncâ†’åªè¯»evaluateï¼ŒåŠ 1æ¬¡è·¨çœŸå®žslideåˆ‡æ¢çš„è§„åˆ’å»¶è¿Ÿæ±‚å€¼ã€‚å››æ¬¡æ ¸å¯¹å†…éƒ¨okã€slide/imageå¯¹åº”å’ŒçœŸå®žé€’å¢žï¼Œä¸ç‚¹å‡»pauseï¼›å‚ç…§dynamic-pages.mdé€é¡¹ä¿ç•™è¯æ®ã€‚",
+    "required_commands": ["cooperate sync", "evaluate"],
+    "required_command_counts": {
+      "evaluate": 4
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "CAROUSEL-WHEEL",
+    "kind": "workflow",
+    "page_type": "carousel",
+    "goal": "/carouselï¼šæ´»åŠ¨è½®æ’­ä¸‹æ‰§è¡Œé¡µé¢ä¸‹/ä¸Šä¸Žnestedå®¹å™¨çºµ/æ¨ªwheelï¼›å«è·¨slideåˆ‡æ¢çš„è§„åˆ’å»¶è¿Ÿå˜ä½“ã€‚æ¯æ¬¡åˆ†åˆ«æ ¸å¯¹å®žé™…æ»šåŠ¨ä¸Žslideç»§ç»­å‰è¿›ï¼Œwheelå‰åŽå‡é€šè¿‡Bskåªè¯»evaluateå’Œæˆªå›¾å–è¯ï¼Œä¸ç”¨scroll-toæˆ–JSæ»šåŠ¨ä»£æ›¿ã€‚",
+    "required_commands": ["cooperate sync", "evaluate", "wheel"],
+    "required_command_counts": {
+      "wheel": 4,
+      "evaluate": 8
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "PUBLIC-OCEAN-WHEEL",
+    "kind": "workflow",
+    "page_type": "public-carousel",
+    "goal": "å·¨é‡å¼•æ“ŽçœŸå®žé¦–é¡µï¼Œä¿æŒè½®æ’­è¿è¡Œï¼Œè‡³å°‘4æ¬¡wheelï¼šå°å¹…ä¸‹/ä¸Š/ä¸‹åŠä¸€æ¬¡è·¨è½®æ’­å‘¨æœŸçš„è§„åˆ’å»¶è¿Ÿè°ƒç”¨ã€‚é¿å…æ»šåŠ¨è¾¹ç•Œï¼Œä¿ç•™è½®æ’­è‡³å°‘éƒ¨åˆ†å¯è§ï¼›æ ¸å¯¹çœŸå®žscrollY/å‰åŽæˆªå›¾ã€slide/imageå˜åŒ–ä¸Žguardç»“æžœï¼Œä¸èƒ½ç”¨é™æ€é¡µæ›¿ä»£ã€‚",
+    "required_commands": ["cooperate sync", "evaluate", "wheel"],
+    "required_command_counts": {
+      "wheel": 4,
+      "evaluate": 8
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "PUBLIC-TAOBAO-WHEEL",
+    "kind": "workflow",
+    "page_type": "image-commerce",
+    "goal": "æ·˜å®å…ˆå…³é—­å…¨éƒ¨å¯å…³é—­ç™»å½•å±‚å¹¶ç¡®è®¤ä¸»é¡µå¯æ“ä½œï¼Œæ´»åŠ¨è½®æ’­ä¸‹è‡³å°‘4æ¬¡wheelï¼šå°å¹…ä¸‹/ä¸Š/ä¸‹åŠä¸€æ¬¡è·¨è½®æ’­å‘¨æœŸçš„è§„åˆ’å»¶è¿Ÿè°ƒç”¨ã€‚é€æ¬¡æ ¸å¯¹æ»šåŠ¨ã€è½®æ’­å˜åŒ–ã€å¯è§å•†å“/æ‡’åŠ è½½ï¼›ä¸å¾—åœ¨é®æŒ¡ç™»å½•å±‚èƒŒåŽå–å€¼åŽç®—é€šè¿‡ã€‚",
+    "required_commands": ["cooperate sync", "evaluate", "wheel"],
+    "required_command_counts": {
+      "wheel": 4,
+      "evaluate": 8
+    },
+    "recipe": "references/dynamic-pages.md"
+  },
+  {
+    "id": "PLAN-BATCH-FORM",
+    "kind": "workflow",
+    "page_type": "batch-plan",
+    "goal": "/plan-recipe-labï¼štarget ç­–ç•¥ä¸‹ä¸€æ¬¡ cooperate sync åŽï¼Œç”¨å•æ¬¡ bsk plan æ‰¹é‡æ‰§è¡Œçº§è”è¡¨å•ï¼ˆfill ç”³è¯·äººã€select çœä»½ã€wait-for-element ç­‰å¾…å¼‚æ­¥åŸŽå¸‚ option æŒ‚è½½ã€å¸¦æ­¥éª¤çº§ expect æ ¡éªŒçš„ select åŸŽå¸‚ä¸Žå¥—é¤ã€click å‹¾é€‰ä¸Žç”Ÿæˆå›žæ‰§ï¼‰ï¼Œé…åˆ --until-visible '#plan-summary' ä¸Ž --save-fullã€‚éªŒè¯ 1 ä¸ªäº¤äº’è½®æ¬¡å®Œæˆå…¨éƒ¨æ­¥éª¤ï¼ˆok:trueï¼Œcompleted>=5ï¼‰ã€è¿”å›žæ–° post.context_idï¼Œä¸”æœåŠ¡ç«¯ä»…æ”¶åˆ°ä¸€æ¬¡æ•°å€¼ç²¾ç¡®åŒ¹é…çš„ plan-applied äº‹ä»¶ã€‚",
+    "required_commands": ["cooperate sync", "plan", "read"]
+  },
+  {
+    "id": "PLAN-UNTARGETED-AND-CACHE",
+    "kind": "workflow",
+    "page_type": "batch-plan",
+    "goal": "/plan-recipe-lab æˆ– /workbenchï¼šéªŒè¯ bsk plan é¦–æ­¥ä¸ºæ— ç›®æ ‡åŠ¨ä½œï¼ˆwheel æˆ– press æºå¸¦ --observationï¼‰åŠ åŽç»­æœ‰ç›®æ ‡ DOM åŠ¨ä½œï¼›éšåŽåœ¨ä¸æ”¹å˜é¡µé¢ç»“æž„çš„ sync/plan ä¸Šä¼ å…¥ --baseline ä¸Ž --save-full éªŒè¯ observation_origin.kind:reusedï¼Œå¹¶ç”¨ bsk view æœ¬åœ°æ£€ç´¢ --find ä¸Žè¡ŒèŒƒå›´ï¼ˆç¡®è®¤ browser_calls:0 ä¸” historical:trueï¼‰ã€‚",
+    "required_commands": ["cooperate sync", "plan", "view"]
+  },
+  {
+    "id": "NEG-PLAN-MIDSTEP-EXPECT",
+    "kind": "workflow",
+    "page_type": "batch-plan",
+    "goal": "/plan-recipe-labï¼šå…ˆ sync è¯»å–å•ä»· Â¥120ï¼Œè§¦å‘æ¶¨ä»·ä¸º Â¥260 åŽæ‰§è¡Œå¤šæ­¥ bsk planï¼ˆç¬¬1æ­¥ fill ç”³è¯·äººï¼Œç¬¬2æ­¥å¸¦ expect å•ä»·=Â¥120 çš„ click ç”Ÿæˆå›žæ‰§ï¼Œç¬¬3æ­¥ fill è¦†ç›–ï¼‰ã€‚éªŒè¯ç¬¬1æ­¥å®Œæˆã€ç¬¬2æ­¥å›  expect ä¸åŒ¹é…åœæ­¢ï¼ˆok:falseï¼Œcompleted:1ï¼Œstopped.index:1ï¼Œstopped.effect_state:'none'ï¼Œnot_run:[2]ï¼‰ï¼Œè¿”å›žå¯é‡è§„åˆ’çš„ post.context_idï¼Œä¸” planAppliedCount æœªå¢žåŠ ã€‚",
+    "required_commands": ["plan"],
+    "negative": true,
+    "allow_plan_stopped": true
+  },
+  {
+    "id": "NEG-PLAN-WAIT-UNSATISFIED",
+    "kind": "workflow",
+    "page_type": "batch-plan",
+    "goal": "/plan-recipe-labï¼šbsk plan å†…åµŒ wait-for-element ç­‰å¾…ä¸å­˜åœ¨é€‰æ‹©å™¨ #never-readyï¼ˆtimeout_ms:150ï¼‰åŽè·Ÿ clickï¼ŒéªŒè¯åœ¨ç­‰å¾…æ­¥ä¸­æ­¢ï¼ˆok:falseï¼Œstopped.reason:'wait_unsatisfied'ï¼Œstopped.effect_state:'none'ï¼‰ï¼ŒåŽç»­ click è¿›å…¥ not_run æœªè§¦å‘ã€‚",
+    "required_commands": ["plan"],
+    "negative": true,
+    "check_effect": false,
+    "allow_plan_stopped": true
+  },
+  {
+    "id": "NEG-PLAN-CONTRACT",
+    "kind": "workflow",
+    "page_type": "batch-plan",
+    "goal": "æµ‹è¯• bsk plan æœ¬åœ°å‚æ•°ä¸Žåè®®æŠ¤æ ï¼ˆå¦‚ç¬¬2æ­¥åŒ…å«æ— ç›®æ ‡ press/wheelã€åœ¨ plan é¡¶å±‚è¯¯ä¼  --expectã€æ­¥éª¤æ•°è¶…è¿‡20æˆ–å« navigate/evaluateï¼‰ï¼Œç¡®è®¤åœ¨å‘é€ä»»ä½•è¯·æ±‚å‰æ‹’ç»ä¸”åŽŸåˆæ³• context ä»å¯ç»§ç»­ä½¿ç”¨ã€‚",
+    "required_commands": ["plan"],
+    "negative": true,
+    "check_effect": false,
+    "allow_plan_stopped": true
+  },
+  {
+    "id": "RECIPE-LIFECYCLE",
+    "kind": "workflow",
+    "page_type": "recipe",
+    "goal": "/recipe/form?source=firstï¼šåœ¨çœŸå®žä¼šè¯ç”¨ plan/fill å®Œæˆå¼€æˆ·ç”³è¯·é¢„è§ˆåŽï¼Œåœ¨åœæ­¢ä¼šè¯å‰æ‰§è¡Œ bsk recipe draft å¯¼å‡ºè‰ç¨¿ï¼ˆæ ¸å¯¹ draft.site.start ä¸º /recipe/formã€ä¸å«æ•æ„Ÿè¾“å…¥æ˜Žæ–‡ä¸”åŒ…å« query string è„±æ•æç¤ºï¼‰ï¼›å®¡æŸ¥è¡¥é½ until ä¸Ž outputs åŽæ‰§è¡Œ recipe saveã€recipe approveï¼ˆæ— é£Žé™©é™çº§æ—¶è¿”å›ž approval_required:falseï¼‰ã€recipe listã€recipe showï¼ˆåˆå§‹ status:draftï¼‰ï¼›å†æ‰§è¡Œ bsk recipe run éªŒè¯è‡ªåŠ¨åˆ›å»ºå¹¶å…³é—­ recipe:<name> ä¼šè¯ã€status:'completed'ã€outputs ç²¾ç¡®åŒ¹é…ã€show çŠ¶æ€å‡ä¸º verifiedï¼›æœ€åŽç”¨ä¸´æ—¶å‰¯æœ¬éªŒè¯ recipe rmã€‚",
+    "required_commands": [
+      "recipe draft",
+      "recipe save",
+      "recipe approve",
+      "recipe list",
+      "recipe show",
+      "recipe run",
+      "recipe rm"
+    ]
+  },
+  {
+    "id": "RECIPE-DRIFT-RESILIENCE",
+    "kind": "workflow",
+    "page_type": "recipe",
+    "goal": "/recipe/reportï¼šä¿å­˜å« requiresã€interruptsï¼ˆè‡ªåŠ¨å…³é—­è®¢é˜…ä¼˜æƒ å¼¹çª—ï¼‰ä¸Ž outputs çš„æŠ¥è¡¨æŸ¥è¯¢ recipeï¼Œä¾æ¬¡å¯¹ drift=noneã€idsï¼ˆéšæœºå…ƒç´ IDï¼‰ã€orderï¼ˆå­—æ®µé¡ºåºè°ƒæ¢+å¹²æ‰°æŒ‰é’®ï¼‰ã€lateï¼ˆå»¶è¿Ÿæ¸²æŸ“ï¼‰ã€popupï¼ˆå·²çŸ¥å¼¹çª—ä¸­æ–­ï¼‰ã€rerenderï¼ˆæŸ¥è¯¢æŒ‰é’®é‡æ¸²æŸ“ï¼‰æ‰§è¡Œ bsk recipe runï¼ŒéªŒè¯å…¨éƒ¨ status:'completed'ã€outputs.total ç²¾ç¡®ç­‰äºŽ 1300ï¼Œä¸” /events ä¸­æ—  /recipe/wrong æˆ– /recipe/draft è¯¯è§¦å‘ã€‚",
+    "required_commands": ["recipe save", "recipe run"],
+    "required_command_counts": {
+      "recipe run": 6
+    }
+  },
+  {
+    "id": "RECIPE-MULTI-SEGMENT-SESSION",
+    "kind": "workflow",
+    "page_type": "recipe",
+    "goal": "åœ¨è°ƒç”¨æ–¹å·²å¯åŠ¨çš„ --session ä¸­è¿è¡Œå« 2 ä¸ª segmentsï¼ˆç¬¬1æ®µåœ¨ /recipe/report æŸ¥è¯¢å­£åº¦é‡‘é¢ï¼Œç¬¬2æ®µé€šè¿‡æ®µå†… navigate è·³è½¬ /recipe/form?for={{company}} å¹¶æ ¡éªŒ requires åŽå¡«å†™é¢„è§ˆï¼‰çš„ recipeï¼ŒéªŒè¯ status:'completed'ã€steps_done:4ã€outputs æ­£ç¡®ï¼Œä¸”è°ƒç”¨æ–¹ session ä¿æŒæ‰“å¼€æœªè‡ªåŠ¨å…³é—­ã€‚",
+    "required_commands": ["session start", "recipe save", "recipe run", "session stop"]
+  },
+  {
+    "id": "NEG-RECIPE-HANDOFF",
+    "kind": "workflow",
+    "page_type": "recipe",
+    "goal": "/recipe/reportï¼šå¯¹è¯­ä¹‰æ¼‚ç§»é¡µé¢è¿è¡Œ bsk recipe runï¼Œè¦†ç›– drift=labelï¼ˆtarget_not_foundï¼‰ã€drift=duplicateï¼ˆtarget_ambiguousï¼‰ã€drift=login æˆ– unknown-popupï¼ˆrequires_failedï¼‰ã€è·¨åŸŸè·³è½¬ï¼ˆorigin_mismatchï¼‰åŠ drift=requiredï¼ˆuntil_timeoutï¼‰ã€‚éªŒè¯å‡ä»¥ exit 1ã€status:'handoff' åŠç²¾ç¡® reason å®‰å…¨åœä¸‹ï¼Œé›¶é”™è¯¯ç‚¹å‡»ï¼Œä¿ç•™æ‰“å¼€çš„ session_idã€post.context_id ä¸Ž remaining ä¾›æŽ¥ç®¡ï¼›è¿žç»­3æ¬¡åŒä¸€æ­¥éª¤ handoff åŽ recipe show çŠ¶æ€å˜ä¸º staleã€‚",
+    "required_commands": ["recipe run", "recipe show"],
+    "negative": true,
+    "check_effect": false,
+    "allow_recipe_handoff": true
+  },
+  {
+    "id": "NEG-RECIPE-REFUSAL",
+    "kind": "workflow",
+    "page_type": "recipe",
+    "goal": "éªŒè¯ bsk recipe å®‰å…¨æ‹’æ­¢è¾¹ç•Œï¼š(1) ä¿å­˜å«ä¸å¯é€†æäº¤æŒ‰é’®ï¼ˆå¦‚â€œç«‹å³æ”¯ä»˜æäº¤â€ commit stepï¼‰çš„ recipe è¢«æ‹’ç»ï¼ˆexit 2ï¼Œsaved:falseï¼‰ï¼›(2) å°† commit æ­¥éª¤æ˜¾å¼å£°æ˜Žä¸º risk:'reversible' ä¿å­˜åŽï¼ˆapproval:'required'ï¼‰ï¼Œæœªç»ç»ˆç«¯äººå·¥å®¡æ‰¹ç›´æŽ¥è¿è¡Œè¿”å›ž exit 2ã€reason:'approval_required'ï¼Œä¸”éžç»ˆç«¯ç®¡é“è°ƒç”¨ recipe approve è¿”å›ž exit 2ã€reason:'approval_needs_person'ï¼›(3) ç¼ºå¤±å¿…å¡« --paramã€éžæ³•æžšä¸¾å€¼ã€å€Ÿç”¨æ ‡ç­¾é¡µæˆ–ä¸å­˜åœ¨ recipe åä¸Šè¿è¡Œè¿”å›ž status:'refused'ã€‚",
+    "required_commands": ["recipe save", "recipe run"],
+    "negative": true,
+    "check_effect": false,
+    "allow_recipe_refusal": true
+  },
+  {
+    "id": "READ-DYNAMIC-BOUNDED",
+    "kind": "workflow",
+    "page_type": "per-second-dynamic",
+    "goal": "/live-update ä¸Ž /workbenchï¼šåœ¨æŒç»­åŠ¨ç”»/æ¯ç§’æ›´æ–°é¡µé¢åŠ iframe/shadow èŠ‚ç‚¹ä¸Šä½¿ç”¨ bsk readï¼ˆè¦†ç›– --selector ä¸Ž --refï¼Œ--fields-json åŒæ—¶è¯»å– textã€attributeã€valueã€checkedã€existsï¼Œä»¥åŠ --max-nodes ä¸Ž --max-bytes é™åˆ¶ï¼‰ï¼Œè¯æ˜Žæ— éœ€ evaluate å³å¯é›¶ JS æ³¨å…¥ã€æœ‰ç•Œä¸”å‡†ç¡®åœ°è¯»å–å®žæ—¶ DOM å­—æ®µã€‚",
+    "required_commands": ["read", "cooperate sync"],
+    "required_command_counts": {
+      "read": 3
+    }
+  },
+  {
+    "id": "EDGE-VIRTUAL-LIST-RECYCLE",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/forum-hub ä¸Ž /edgecasesï¼šæµ‹è¯•è™šæ‹Ÿåˆ—è¡¨è§†å£åˆ‡æ¢ï¼ˆç‚¹å‡»åˆ‡æ¢è§†å£è¡Œ 20-25ï¼‰ä¸Žè¡Œå¤ç”¨æ­£ä¾‹ï¼šåˆ‡æ¢åŽ fresh sync ç¡®è®¤æ—§è§†å£è¡Œå¸è½½ã€æ–°è§†å£è¡Œ #21..#25 æŒ‚è½½ï¼Œå¹¶é€šè¿‡ extract table / extract list / read å®Œæ•´æå–æ–°è§†å£è¡¨æ ¼ä¸Žåˆ—è¡¨ä¸”ä¸æ‹†è¡Œã€ä¸ä¸²åˆ—ï¼›å¯¹å·²å¤ç”¨/å·²å¸è½½æ—§è¡Œ ref çš„æ‹’ç»è®°å½•å•åˆ—å½’å…¥ NEG-RECYCLED æˆ– NEG-STALEã€‚",
+    "required_commands": ["cooperate sync", "click", "extract table", "extract list", "read"]
+  },
+  {
+    "id": "EDGE-STACKED-MODALS",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/video-portal?modal=2ï¼šåŒå±‚æ¨¡æ€æ¡†å åŠ é®ç½©ä¸‹ï¼Œå…ˆ sync æ ¸å¯¹ VOM @layers ä¸Žé¡¶å±‚ç„¦ç‚¹å±‚ï¼ˆmodal-layer-2ï¼‰ï¼›ä½¿ç”¨ Bsk ä¾æ¬¡å…³é—­é¡¶å±‚ modal-2 ä¸Žä¸‹å±‚ modal-1ï¼ˆæ¯å…³ä¸€å±‚å‡ fresh sync ç¡®è®¤å›¾å±‚æ”¶æ•›ä¸Žé®ç½©ç§»é™¤ï¼‰ï¼Œæœ€åŽæˆåŠŸç‚¹å‡»å¹¶ read åº•å±‚æ’­æ”¾æŽ§ä»¶çŠ¶æ€ï¼›é®ç½©æœªå…³é—­æ—¶ç‚¹å‡»åº•å±‚æŽ§ä»¶çš„ target_covered æ‹’ç»è®°å½•å•åˆ—å½’å…¥ NEG-COVEREDã€‚",
+    "required_commands": ["cooperate sync", "click", "read"]
+  },
+  {
+    "id": "EDGE-EDITOR-BOUNDARIES",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/workbench#formsï¼šæµ‹è¯• contenteditable å¯Œæ–‡æœ¬æ ¹èŠ‚ç‚¹ fill è¦†ç›–ã€fill '' æ¸…ç©ºã€fill --no-clear è¿½åŠ ä»¥åŠå¤šè¡Œ/Emoji/CJK æ–‡æœ¬è¾“å…¥ï¼Œå¹¶é€šè¿‡ read æ ¸å¯¹ DOM å†…å®¹ä¸Žè¾“å…¥äº‹ä»¶ï¼›å¯¹ç¼–è¾‘å™¨å†…éƒ¨éžæ ¹åŽä»£èŠ‚ç‚¹ç›´æŽ¥ fill çš„ target_not_fillable æ‹’ç»è®°å½•å•åˆ—å½’å…¥ NEG-INVALIDã€‚",
+    "required_commands": ["fill", "read", "click"]
+  },
+  {
+    "id": "EDGE-SPA-PUSHSTATE-RACE",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/forum-hubï¼šæµ‹è¯•åŒæ–‡æ¡£ history.pushState åˆ‡æ¢èŠ‚ç‚¹ Tabã€è¿›å…¥ä¸»é¢˜è¯¦æƒ…ä¸Ž popstate/navigate back è¿”å›žåˆ—è¡¨ï¼Œé…åˆ step/plan çš„ --until-visible ç¡®è®¤ç­‰å¾…çœŸå®žç›®æ ‡æŒ‚è½½ï¼Œä¸å°†è·¯ç”±åˆ‡æ¢å‰çš„æ—§åˆ—è¡¨æˆ–éª¨æž¶å½“æˆæ–°é¡µé¢æ•°æ®ã€‚",
+    "required_commands": ["step", "plan", "navigate back", "read"]
+  },
+  {
+    "id": "EDGE-NESTED-MENU-REFS",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/nested-menu å¤šçº§åŠ¨æ€èœå•å±•å¼€åŽå­é¡¹ç‹¬ç«‹å¼•ç”¨ï¼šå¤çŽ°ä¸¤çº§æ‚¬åœï¼ˆWorkspace -> Advancedï¼‰åŠäºŒçº§æµ®å±‚ #advanced-popper åµŒåœ¨çˆ¶ menuitem #menu-advanced å†…çš„ DOM ç»“æž„ã€‚å‘ç‰ˆå®¡è®¡æ ¸éªŒä¸‰é¡¹ï¼šâ‘  äºŒçº§èœå•å±•å¼€å‰ï¼ŒAudit export ä¸Ž Report history éƒ½æ²¡æœ‰å¯æ“ä½œå¼•ç”¨ï¼›â‘¡ é€çº§ hover å¹¶ wait-for-element ç­‰å¾…æµ®å±‚å¯è§åŽï¼ŒæŒ‰ç‹¬ç«‹è¡Œæ£€æŸ¥ syncã€observe å’Œ snapshot çš„è¾“å‡ºï¼ŒAudit export å’Œ Report history å¿…é¡»å„è‡ªæœ‰ä¸€æ¡å®Œæ•´çš„ menuitem è¡Œä¸” @eN ä¸åŒï¼ˆå­é¡¹æ–‡å­—åªå‡ºçŽ°åœ¨çˆ¶é¡¹åç§°é‡Œæ—¶åˆ¤å¤±è´¥ï¼‰ï¼›â‘¢ ä»Žæœ€æ–°ä¸€æ¬¡ sync å–å‡º Audit export çš„å¼•ç”¨ï¼Œç”¨ bsk click ç‚¹å‡»ï¼Œé€šè¿‡ read #menu-selection-receipt æ ¸å¯¹é¡µé¢å›žæ‰§ä¸º Selected auditã€‚",
+    "required_commands": [
+      "navigate",
+      "sync",
+      "hover",
+      "wait-for-element",
+      "observe",
+      "snapshot",
+      "click",
+      "read"
+    ],
+    "required_command_counts": {
+      "hover": 2,
+      "sync": 2
+    },
+    "nested_menu_contract": {
+      "items": [
+        { "role": "menuitem", "name": "Audit export" },
+        { "role": "menuitem", "name": "Report history" }
+      ],
+      "click_item": { "role": "menuitem", "name": "Audit export" },
+      "expected_receipt": "Selected audit"
+    }
+  },
+  {
+    "id": "EDGE-SLOTTED-LIST-EXTRACT",
+    "kind": "workflow",
+    "page_type": "edge-cases",
+    "goal": "/arena-shadow-iframe Shadow DOM æ’æ§½åˆ—è¡¨ç»“æž„åŒ–æå–ï¼šå¤çŽ° open Shadow Root å†…çš„ <ul id='shadow-slotted-list'> é€šè¿‡å…·åæ’æ§½ <slot name='priority'>ã€é»˜è®¤ <slot> ä¸Žå›žé€€æ’æ§½ <slot name='fallback'> æ¸²æŸ“ Light DOM <li> çš„çœŸå®žåœºæ™¯ã€‚å‘ç‰ˆå®¡è®¡æ ¸éªŒä¸‰é¡¹ï¼šâ‘  æ‰§è¡Œ extract discover å‘çŽ° Shadow Slotted Runbook List å¹¶å–å¾—å…¶ target_idï¼›â‘¡ ç”¨è¯¥ target_id æ‰§è¡Œ extract listï¼ŒæŒ‰æ’æ§½æ¸²æŸ“é¡ºåºæå– 3 æ¡å¯è§é¡¹ï¼ˆPreflight quorum checkã€Canary traffic 10%ã€Fallback health gateï¼‰åŠå…¶å„è‡ªçš„ urlï¼ˆå¤–å±‚é¡¹ä¸å¾—å› å†…éƒ¨åµŒå¥—å­åˆ—è¡¨é“¾æŽ¥è¯¯è§¦ ambiguous_default_url ä¸¢å¼ƒ urlï¼‰ï¼Œé—­åˆ <details> ä¸Ž display:none éšè—é¡¹è¢«å¿½ç•¥ä½†ä¿ç•™ source_row ä½ç½®ä¸º [1, 3, 5] ä¸”è¿”å›ž warnings:['hidden_rows_omitted']ï¼Œæœªåˆ†é…æ’æ§½é¡¹ Unassigned orphan item ä¸ŽåµŒå¥—å­åˆ—è¡¨ #shadow-nested-sublist å†…çš„ <li> ä¸æ··å…¥å¤–å±‚åˆ—è¡¨è¡Œï¼›â‘¢ å¯¹ #shadow-nested-sublist å•ç‹¬æ‰§è¡Œ extract listï¼Œä»…æå–å­é¡¹ Sub-check: mTLS cert pinned åŠå…¶ urlã€‚",
+    "required_commands": ["navigate", "extract discover", "extract list"],
+    "required_command_counts": {
+      "extract list": 2
+    },
+    "slotted_list_contract": {
+      "target_name": "Shadow Slotted Runbook List",
+      "outer_items": [
+        { "text": "Preflight quorum check", "url_suffix": "/runbook/preflight", "source_row": 1 },
+        { "text": "Canary traffic 10%", "url_suffix": "/runbook/canary", "source_row": 3 },
+        { "text": "Fallback health gate", "url_suffix": "/runbook/fallback", "source_row": 5 }
+      ],
+      "forbidden_texts": [
+        "Unassigned orphan item",
+        "Archived canary rollback",
+        "Hidden staging note"
+      ],
+      "inner_selector": "#shadow-nested-sublist",
+      "inner_items": [
+        { "text": "Sub-check: mTLS cert pinned", "url_suffix": "/runbook/mtls", "source_row": 1 }
+      ]
+    }
+  },
+  {
+    "id": "LOCAL-VIDEO-PORTAL",
+    "kind": "workflow",
+    "page_type": "video-site",
+    "goal": "/video-portal?modal=1ï¼šæœ¬åœ°è§†é¢‘é—¨æˆ·ç«¯åˆ°ç«¯ Benchmarkï¼šå…ˆå®šä½å¹¶å…³é—­é«˜æ¸…ç™»å½•å¼•å¯¼å¼¹å±‚ï¼Œä½¿ç”¨ bsk plan ä¸€è½®æ¬¡å®Œæˆï¼ˆåˆ‡æ¢ 1.5x å€é€Ÿã€è·³è‡³ç« èŠ‚2ã€å±•å¼€è§†é¢‘ç®€ä»‹ï¼‰ï¼Œç”¨ bsk read è¯»å– #player-state ä¸Žè§†é¢‘å…ƒæ•°æ®ï¼Œç”¨ extract list æŠ½å–å³ä¾§æŽ¨èè§†é¢‘ä¸Žè¯„è®ºåˆ—è¡¨ï¼ŒåŠ è½½æ›´å¤šè¯„è®ºå¹¶æˆªå›¾å–è¯ã€‚",
+    "required_commands": ["cooperate sync", "click", "plan", "read", "extract list", "screenshot"]
+  },
+  {
+    "id": "LOCAL-FORUM-HUB",
+    "kind": "workflow",
+    "page_type": "forum-site",
+    "goal": "/forum-hubï¼šæœ¬åœ°å¼€å‘è€…è®ºå›ç«¯åˆ°ç«¯ Benchmarkï¼šä½¿ç”¨ bsk plan åˆ‡æ¢èŠ‚ç‚¹ Tab å¹¶æŒ‰å…³é”®è¯/çƒ­åº¦ç­›é€‰ï¼Œç”¨ extract list æå–ä¸»é¢˜åˆ—è¡¨ï¼ˆæ ¸å¯¹ç½®é¡¶å¸–ä¸Žé›¶å›žå¤å¸–å­—æ®µå¯¹é½ä¸ä¸²è¡Œï¼‰ï¼Œè¿›å…¥ä¸€æ¡ä¸»é¢˜å¸–ç”¨ bsk read è¯»å–æ­£æ–‡ä»£ç ç‰‡æ®µä¸Žæ¥¼å±‚å›žå¤ï¼Œå†ç”¨ bsk recipe ä¿å­˜å¹¶é‡æ”¾ä¸€æ¬¡èŠ‚ç‚¹çƒ­å¸–å·¡æ£€ã€‚",
+    "required_commands": [
+      "cooperate sync",
+      "plan",
+      "extract list",
+      "read",
+      "recipe save",
+      "recipe run"
+    ]
+  },
+  {
+    "id": "PUBLIC-BILIBILI-FEED",
+    "kind": "workflow",
+    "page_type": "video-site",
+    "goal": "çœŸå®žè§†é¢‘ç½‘ç«™ https://www.bilibili.com/ é¦–é¡µï¼šè‹¥å‡ºçŽ°å¯å…³é—­çš„ç™»å½•æç¤ºå¼¹å±‚å…ˆç”¨ Bsk å…³é—­å¹¶ fresh sync ç¡®è®¤ï¼›ç»“åˆ wheel / plan è§¦å‘æŽ¨èæµä¸Žåˆ†åŒºåŠ è½½ï¼Œä½¿ç”¨ extract list / read æå–è‡³å°‘ 10 æ¡å½“å‰å¯è§è§†é¢‘å¡ç‰‡ï¼ˆæ ‡é¢˜ã€UPä¸»ã€æ’­æ”¾é‡/æ—¶é•¿ã€é“¾æŽ¥ã€å°é¢å›¾åŠ è½½çŠ¶æ€ï¼‰ï¼Œè®°å½•äº¤äº’è½®æ¬¡ä¸Žè€—æ—¶ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "wheel",
+      "extract list",
+      "read",
+      "screenshot"
+    ]
+  },
+  {
+    "id": "PUBLIC-BILIBILI-PLAYER",
+    "kind": "workflow",
+    "page_type": "video-site",
+    "goal": "çœŸå®žè§†é¢‘ç½‘ç«™ https://www.bilibili.com/ å…¬å¼€è§†é¢‘è¯¦æƒ…é¡µï¼šä»Žé¦–é¡µæˆ–å…¬å¼€è§†é¢‘é“¾æŽ¥è¿›å…¥æ’­æ”¾é¡µï¼Œè‹¥æ’­æ”¾æˆ–äº¤äº’è§¦å‘è‡ªåŠ¨ç™»å½•é®ç½©ï¼Œå¿…é¡»å…ˆç”¨ Bsk å®šä½å…³é—­æŒ‰é’®å¹¶ fresh sync éªŒè¯é®ç½©æ¶ˆå¤±ï¼›é€šè¿‡ read / evaluate è¯»å–çœŸå®ž <video> çŠ¶æ€ï¼ˆreadyStateã€durationã€currentTimeã€pausedï¼‰åŠæ ‡é¢˜/ç»Ÿè®¡ä¿¡æ¯ï¼Œä½¿ç”¨ plan æˆ– click æ‰§è¡Œå®‰å…¨åªè¯»äº¤äº’ï¼ˆå¦‚å±•å¼€ç®€ä»‹æˆ–åˆ‡æ¢é™éŸ³/æš‚åœï¼‰å¹¶æˆªå›¾æ ¸éªŒã€‚ä¸¥ç¦å‘å¼¹å¹•/ç‚¹èµž/æŠ•å¸/è¯„è®ºã€‚",
+    "required_commands": ["navigate", "cooperate sync", "read", "evaluate", "click", "screenshot"]
+  },
+  {
+    "id": "PUBLIC-FORUM-TOPICS",
+    "kind": "workflow",
+    "page_type": "forum-site",
+    "goal": "çœŸå®žè®ºå›ç½‘ç«™ https://www.v2ex.com/ï¼šæ‰“å¼€é¦–é¡µåŠå…¬å¼€æŠ€æœ¯èŠ‚ç‚¹ï¼ˆå¦‚ ?tab=tech æˆ– /go/programmerï¼‰ï¼Œä½¿ç”¨ plan æˆ– step åˆ‡æ¢èŠ‚ç‚¹ Tabï¼Œé€šè¿‡ extract list ä¸Ž read æŠ½å–è‡³å°‘ 20 æ¡çœŸå®žä¸»é¢˜å¸–ï¼ˆæ ‡é¢˜ã€èŠ‚ç‚¹ã€ä½œè€…ã€å›žå¤æ•°ã€æœ€åŽå›žå¤æ—¶é—´ã€é“¾æŽ¥ï¼‰ï¼Œæ ¸å¯¹é›¶å›žå¤å¸–ä¸Žå¤šå›žå¤å¸–å­—æ®µä¸ä¸²è¡Œï¼Œå¹¶ç”¨ bsk recipe å›ºåŒ–åŠé‡æ”¾ä¸€æ¬¡å…¬å¼€èŠ‚ç‚¹åˆ—è¡¨è¯»å–ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "extract list",
+      "read",
+      "recipe save",
+      "recipe run"
+    ]
+  },
+  {
+    "id": "PUBLIC-FORUM-THREAD",
+    "kind": "workflow",
+    "page_type": "forum-site",
+    "goal": "çœŸå®žè®ºå›ç½‘ç«™ https://www.v2ex.com/ å¸–å­è¯¦æƒ…ä¸Žæ¥¼å±‚é˜…è¯»ï¼šä»Žåˆ—è¡¨è¿›å…¥ä¸€æ¡å«å¤šæ¡å›žå¤çš„å…¬å¼€ä¸»é¢˜å¸–ï¼Œç­‰å¾…æ­£æ–‡ä¸Žå›žå¤åˆ—è¡¨æ¸²æŸ“ï¼Œä½¿ç”¨ read / get-html è¯»å–ä¸»å¸–æ­£æ–‡ä¸Žå‰ N æ¥¼å›žå¤ï¼ˆæ¥¼å±‚å·ã€ä½œè€…ã€æ—¶é—´ã€æ­£æ–‡å†…å®¹ï¼‰ï¼Œæ‰§è¡Œæ»šåŠ¨ä¸Ž navigate back è¿”å›žä¸»é¢˜åˆ—è¡¨å¹¶æ ¸å¯¹ URL ä¸Žåˆ—è¡¨æ¢å¤ã€‚ä¸¥ç¦å‘å¸–/å›žå¸–/æ„Ÿè°¢ã€‚",
+    "required_commands": ["click", "cooperate sync", "read", "get-html", "wheel", "navigate back"]
+  },
+  {
+    "id": "ARENA-JOINT-LEAD-FORM",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-formsï¼ˆ~1,650 DOM èŠ‚ç‚¹ + 600ms å®žæ—¶æ±‡çŽ‡ç‰Œä»·æŒç»­å˜æ›´ï¼‰ç‰µå¤´ä¸»ä½“ä¸»è¡¨ Form Aï¼šç”¨ plan / fill / select å®Œæˆçœ->å¸‚->95 å­—ç¬¦è¶…é•¿äº§ä¸šå›­ä¸‰çº§å¼‚æ­¥çº§è”ï¼ˆæ ¸å¯¹é•¿é€‰é¡¹æœªå› çœç•¥å·æˆªæ–­è€Œé€‰é”™ï¼Œæœ€ç»ˆ value ä¸º HZ_ZHIJIANG_MEGA ç­‰çœŸå®žå¯é€‰é¡¹ï¼‰ã€ä¿¡ç”¨ä»£ç è‡ªåŠ¨å¤§å†™è„±æ¨ªæ ã€ç²¾ç¡® 8 ä½æ•æ„ŸæŽˆæƒç  #lead-auth-pinã€maxlength=12 çš„ #lead-short-code æˆªæ–­ã€5 ç±» HTML5 æ—¶é—´æŽ§ä»¶ï¼ˆ#joint-date / #joint-time-sec / #joint-datetime / #joint-month / #joint-weekï¼‰ã€å¤šé€‰èµ„è´¨ #qual-multi ä»¥åŠæ˜¾å¼ label[for]ï¼ˆ#explicit-tax-exemptï¼‰ä¸ŽåŒ…è£¹å¼ labelï¼ˆ#wrapped-cross-borderï¼‰å¤é€‰æ¡†ï¼›ç‚¹å‡» #delayed-focus-proxy åŽç­‰å¾… 70ms ç„¦ç‚¹è½¬ç§»ä»£ç†è§£é” #delayed-focus-target å¹¶å¡«å……ã€‚ç”¨ read æ ¸å¯¹ #validation-rules-list ä¸­ R1/R2/R3/R5/R8 ä¸º PASSã€R4 åªè¯»æµæ°´å·æœªå˜ï¼Œå¹¶æ ¸å¯¹ /events ä¸šåŠ¡å›žæ‰§ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "plan", "fill", "select", "click", "read"],
+    "required_command_counts": {
+      "fill": 3,
+      "select": 3
+    }
+  },
+  {
+    "id": "ARENA-JOINT-PARTNERS-BUDGET",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-forms è”åˆä½“å‡ºèµ„çŸ©é˜µ Form B ä¸Žé¢„ç®—ä¼šç­¾ Form Cï¼šåˆå§‹ 2 å®¶æˆå‘˜å…± 80%ï¼Œç‚¹å‡» #btn-add-partner æ–°å¢žç¬¬ 3 å®¶å¹¶ fill å„è¡Œæƒé‡ç²¾ç¡®é…å¹³è‡³ 100%ï¼ˆ#share-sum-badge ä¸Ž #tfoot-share-total åŒæ­¥ï¼‰ï¼›è°ƒæ•´ #total-budget-wanã€#settlement-currency ä¸Žå¢žå€¼ç¨Žæ¡£ä½ï¼ˆ#vat-6 / #vat-9 / #vat-13ï¼‰ï¼Œç”¨ read æ ¸å¯¹ #computed-gross-total ä¸Ž #computed-subsidy-cap è·¨è¡¨è”åŠ¨ç»“æžœï¼›fill å¯Œæ–‡æœ¬æ ¹èŠ‚ç‚¹ #joint-clause-editorï¼›drag å°† #stage-board æ‹–åˆ° #stage-tech ä¹‹å‰å¹¶ read #approval-order-output æ ¸å¯¹é¡ºåºï¼›upload ç»éšè— chooserï¼ˆ#btn-trigger-uploadï¼‰æŒ‚è½½è”åˆé™„ä»¶å¹¶æ ¸å¯¹ #joint-files-outputï¼›extract table åˆ†åˆ«æŠ½å– #partners-tableï¼ˆå« tfoot æ±‡æ€»è¡Œï¼‰ä¸Ž 45 è¡Œ #historical-ledger-tableã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "click",
+      "fill",
+      "select",
+      "drag",
+      "upload",
+      "read",
+      "extract table"
+    ],
+    "required_command_counts": {
+      "fill": 3,
+      "read": 2,
+      "extract table": 2
+    }
+  },
+  {
+    "id": "ARENA-JOINT-SUBMIT-DOWNLOAD",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-forms ç«¯åˆ°ç«¯æäº¤ä¸Žé—¨ç¦ä¸‹è½½ï¼šç”¨å°½é‡å°‘çš„ plan æ‰¹æ¬¡å®Œæˆ Form A/B/C å…¨éƒ¨å¿…å¡«é¡¹ï¼Œread ç¡®è®¤ #joint-readiness-pill ä¸º 10/10 å…¨éƒ¨é€šè¿‡åŽ click #submit-joint-filingï¼Œæ ¸å¯¹ #joint-submit-receipt å›žæ‰§å· JNT-COMMIT-2026-9901 ä¸Ž /events çš„ joint-filing-submittedï¼›æ­¤æ—¶ #download-joint-statement æ‰èŽ·å¾— hrefï¼ˆdata-gate=unlockedï¼‰ï¼Œç”¨ download ä¿å­˜æ ¸å®šå• CSVï¼Œæ ¸å¯¹æ–‡ä»¶å†…å®¹ä¸­çš„ç‰µå¤´å•ä½ä¸Žå«ç¨Žæ€»é¢å’Œé¡µé¢ä¸€è‡´ã€SHA-256 ä¸Ž /events ä¸­ download äº‹ä»¶ä¸€è‡´ï¼Œä¸”ç‰µå¤´å•ä½åç§°å«è‹±æ–‡é€—å·æ—¶ CSV ä»æŒ‰ RFC 4180 æ­£ç¡®åŠ å¼•å·ä¸ä¸²åˆ—ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "plan", "click", "download", "read"]
+  },
+  {
+    "id": "ARENA-NEG-FORM-READONLY-DISABLED",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-forms ä¸å¯å¡«å……ç›®æ ‡è´Ÿä¾‹ï¼šåˆ†åˆ«å¯¹åªè¯»æµæ°´å· #lead-readonly-serialã€ç¦ç”¨æ¡† #lead-disabled-codeã€å¯Œæ–‡æœ¬å®¿ä¸»å†…éƒ¨ contenteditable=false é”æ­»å­èŠ‚ç‚¹ #clause-locked-chip ä»¥åŠç¼–è¾‘å™¨å†…éƒ¨æ®µè½ #clause-inner-paraï¼ˆéžç¼–è¾‘æ ¹ï¼‰æ‰§è¡Œ fillï¼Œæ¯æ¬¡éƒ½å¿…é¡»æ˜Žç¡®æ‹’ç»ï¼šé€šè¿‡ ref/context èµ°åä½œé¢„æ£€æ—¶æœŸæœ› target_readonly / target_disabledï¼Œèµ°å·¥å…·å±‚ï¼ˆraw selectorï¼‰æ—¶æœŸæœ› target_not_fillableï¼›æ ¸å¯¹ effect_state:noneã€DOM å€¼æœªå˜ï¼ˆ#lead-readonly-serial ä»ä¸º JNT-2026-8801ï¼‰ä¸” /events æ— è„å†™ã€‚",
+    "required_commands": ["cooperate sync", "fill"],
+    "required_command_counts": {
+      "fill": 3
+    },
+    "negative": true
+  },
+  {
+    "id": "ARENA-NEG-SELECT-DISABLED-OPTION",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-forms ç¦ç”¨é€‰é¡¹è´Ÿä¾‹ï¼šé€‰æ‹© ZJ -> HZ åŽï¼Œå¯¹ #cascade-park æ‰§è¡Œ select HZ_LEGACY_CLOSEDï¼ˆ<option disabled>ï¼‰å¿…é¡»è¢«æ˜Žç¡®æ‹’ç»ï¼ˆæœŸæœ› option_disabled æˆ–ç­‰ä»·çš„éžé›¶é€€å‡ºé”™è¯¯ç ï¼‰ï¼Œæ ¸å¯¹ effect_state:noneã€#cascade-park çš„ value æœªå˜ä¸” #validation-rules-list ä¸­ R5 ä¸ä¸º PASSã€‚å·²çŸ¥äº§å“ç¼ºå£ï¼šå½“å‰æ‰©å±•é€šè¿‡ selectedIndex ç›´æŽ¥èµ‹å€¼ï¼Œä¼šé™é»˜é€‰ä¸­ç¦ç”¨é€‰é¡¹å¹¶è¿”å›žæˆåŠŸï¼›åœ¨äº§å“ä¿®å¤å‰æœ¬åœºæ™¯åº”å¦‚å®žè®°ä¸º failedï¼Œç¦æ­¢ä¸ºé€šè¿‡è€Œæ”¹å†™æœŸæœ›ã€‚",
+    "required_commands": ["cooperate sync", "select"],
+    "negative": true
+  },
+  {
+    "id": "ARENA-NEG-DOWNLOAD-GATE",
+    "kind": "workflow",
+    "page_type": "joint-forms",
+    "goal": "/arena-joint-forms ä¸‹è½½é—¨ç¦è´Ÿä¾‹ï¼šåœ¨æœªé€šè¿‡è”åˆæ ¡éªŒã€æœªæäº¤å‰å¯¹ #download-joint-statementï¼ˆaria-disabled=trueã€æ—  hrefï¼‰æ‰§è¡Œ downloadï¼ˆä½¿ç”¨çŸ­ --timeoutï¼‰å¿…é¡»éžé›¶é€€å‡ºä¸”ä¸äº§ç”Ÿè¾“å‡ºæ–‡ä»¶ï¼›å¦å¤–ç›´æŽ¥è¯·æ±‚æœªå¸¦å›žæ‰§çš„ /download?scene=joint-filing å¿…é¡»è¿”å›ž 403ï¼Œ/events åªå‡ºçŽ° download-rejected è€Œä¸å‡ºçŽ° joint-filing çš„ download äº‹ä»¶ã€‚",
+    "required_commands": ["cooperate sync", "download"],
+    "negative": true,
+    "check_effect": false
+  },
+  {
+    "id": "ARENA-SHADOW-NESTED-OPEN",
+    "kind": "workflow",
+    "page_type": "shadow-dom",
+    "goal": "/arena-shadow-iframeï¼ˆ~1,850 DOM èŠ‚ç‚¹ï¼Œå« 4 ä¸ª open shadow rootï¼‰ï¼šå…ˆç”¨ observe ä¸Ž snapshot æ£€æŸ¥å«å†…è” <style> ä¸Ž Lit æ³¨é‡ŠèŠ‚ç‚¹çš„ <arena-nav-chip>ï¼ˆ#nav-chip-btnï¼‰ï¼Œè¯æ˜Žæ ·å¼è§„åˆ™ä¸Žæ³¨é‡Šæ–‡æœ¬æœªæ±¡æŸ“å¯è®¿é—®åç§°ã€å‘½å <slot> æŠ•å°„å†…å®¹ï¼ˆ#projected-tenant-codeã€#l2-projected-slot-tagï¼‰å¯è§ï¼›é€å±‚ç©¿é€ L1 <arena-cloud-console> -> L2 <arena-policy-card> -> L3 <arena-action-drawer> ä¸‰å±‚åµŒå¥— Open Shadow DOMï¼Œå®Œæˆ #shadow-l1-filter fillã€#shadow-l2-quota selectã€#shadow-l3-menu-trigger hover åŽç‚¹å‡»æµ®å±‚ #shadow-l3-template-fillã€å¯¹ L2 å†…éƒ¨è¡¨æ ¼ #shadow-l2-table æ‰§è¡Œ extract tableã€ç‚¹å‡» L3 #shadow-l3-commitï¼Œé€šè¿‡ read #shadow-bus-output ä¸Ž /events æ ¸éªŒ composed:true äº‹ä»¶å®Œæ•´æºå¸¦ä¸‰å±‚å­—æ®µã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "observe",
+      "snapshot",
+      "fill",
+      "select",
+      "hover",
+      "click",
+      "read",
+      "extract table"
+    ],
+    "required_command_counts": {
+      "click": 2
+    }
+  },
+  {
+    "id": "ARENA-SHADOW-CLOSED-VISUAL",
+    "kind": "workflow",
+    "page_type": "shadow-dom",
+    "goal": "/arena-shadow-iframe Closed Shadow DOM è¾¹ç•Œï¼šå¯¹ closed æ¨¡å¼çš„ <arena-hardware-key>ï¼ˆ#closed-key-hostï¼‰æ ¸å¯¹ observe / cooperate sync è¯šå®žæš´éœ²è¯­ä¹‰è¾¹ç•Œï¼ˆä¸ä¼ªé€ å†…éƒ¨ refã€ä¸æŠ¥å‘Šä¸å­˜åœ¨çš„å¯ç‚¹å…ƒç´ ï¼‰ï¼Œå†é€šè¿‡ screenshot å®šä½å³ä¾§ç»¿è‰²ç¡¬ä»¶ç¡®è®¤åž«ï¼Œç”¨è§†è§‰åæ ‡ click æ¿€æ´»å¹¶é€šè¿‡ read #shadow-bus-output ä¸Ž /events æ ¡éªŒç¡®è®¤äº‹ä»¶ï¼›éšåŽç‚¹å‡»å®¿ä¸» #btn-host-independent-action è¯æ˜Žæ™®é€šå®¿ä¸»äº¤äº’æœªå—å½±å“ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "observe", "screenshot", "click", "read"],
+    "required_command_counts": {
+      "click": 2
+    }
+  },
+  {
+    "id": "ARENA-IFRAME-FEDERATION",
+    "kind": "workflow",
+    "page_type": "iframe",
+    "goal": "/arena-shadow-iframe ä¸‰å±‚åŒæº/è·¨æºå†å…¥ iframe è”é‚¦ï¼šåœ¨å®¿ä¸»ï¼ˆ127.0.0.1ï¼‰é¡µé¢åŒæ­¥å‘çŽ°å¹¶æ“ä½œ â‘  åŒæº L1 è´¦å•å­å¸§ #same-origin-billing-frameï¼ˆ/arena-frame-inner?role=billingï¼‰ã€â‘¡ è·¨æº L1 ç½‘å…³å¤–å¸§ #cross-origin-outer-frameï¼ˆhttp://localhost:PORT/arena-frame-outerï¼‰ã€â‘¢ åµŒåœ¨è·¨æºå¤–å¸§å†…ã€å›žåˆ‡ 127.0.0.1 å½¢æˆ A->B->A åŒè·³çš„ L2 å®¡è®¡å†…å¸§ #nested-l2-iframeï¼ˆ/arena-frame-inner?role=nested-auditï¼‰ã€‚åœ¨ä¸‰å±‚å­å¸§ä¸­åˆ†åˆ«æ‰§è¡Œ fillï¼ˆ#inner-operator / #outer-gateway-tokenï¼‰ã€selectï¼ˆ#inner-tier / #outer-region-selectï¼‰ã€clickï¼ˆ#inner-approve-btn / #outer-sync-btnï¼‰ã€extract discover ä¸Žå« rowspan/colspan çš„ extract tableï¼ˆ#inner-ledger-table / #outer-routes-tableï¼‰ï¼Œé€šè¿‡ read #federation-message-log ä¸Ž /events æ ¡éªŒå„å¸§çœŸå®ž origin/host ä¸Ž postMessage è·¨å±‚ä¸­ç»§è®¡æ•° #postmessage-counterã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "observe",
+      "fill",
+      "select",
+      "click",
+      "read",
+      "extract discover",
+      "extract table"
+    ],
+    "required_command_counts": {
+      "fill": 3,
+      "click": 3,
+      "extract table": 2
+    }
+  },
+  {
+    "id": "ARENA-IFRAME-RELOAD-ISOLATION",
+    "kind": "workflow",
+    "page_type": "iframe",
+    "goal": "/arena-shadow-iframe å­å¸§å±€éƒ¨é‡è½½éš”ç¦»ï¼šå…ˆå®Œæˆä¸€æ¬¡è·¨æº L2 å®¡è®¡å†…å¸§çš„ fillï¼Œå†ç‚¹å‡»å¤–å¸§å†… #btn-reload-nested-l2 ä¸Žå®¿ä¸» #btn-refresh-same-frame å±€éƒ¨é‡è½½å­å¸§ï¼›è¯æ˜Žé‡è½½æœŸé—´åŠä¹‹åŽå®¿ä¸» #btn-host-independent-action ä»å¯ç›´æŽ¥æ“ä½œï¼ˆ#host-heartbeat-count é€’å¢žï¼‰ï¼Œæ—§å­å¸§ ref æŒ‰åˆåŒå¤±æ•ˆè€Œä¸æ˜¯è¯¯å‘½ä¸­æ–°æ–‡æ¡£ï¼Œfresh cooperate sync åŽå¯åœ¨æ–°å­å¸§å†…ç»§ç»­ç²¾ç¡® fill / clickï¼Œå¹¶é€šè¿‡ /events æ ¸å¯¹é‡è½½å‰åŽçš„ frame äº‹ä»¶ä¸ä¸²å·ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "fill", "click", "read"],
+    "required_command_counts": {
+      "cooperate sync": 2,
+      "click": 3
+    }
+  },
+  {
+    "id": "ARENA-MEDIA-VIDEO-TRANSPORT",
+    "kind": "workflow",
+    "page_type": "media",
+    "goal": "/arena-media-studio åŽŸç”Ÿ <video controls> ä¼ è¾“æŽ§åˆ¶ï¼ˆæœåŠ¡å™¨æ”¯æŒ HTTP 206 Rangeï¼‰ï¼šéªŒè¯ #studio-video readyState>=2 ä¸”å°ºå¯¸éžé›¶ï¼›ç‚¹å‡» #btn-video-toggle æ’­æ”¾/æš‚åœï¼›ä¾æ¬¡ç‚¹å‡» #btn-video-chap-1..3 å¯»å€ 0.2s/1.8s/3.5s å¹¶éªŒè¯ currentTime æœªå›žå¼¹å½’é›¶ï¼ˆ#v-stat-seek è®¡æ•°é€’å¢žï¼‰ã€#btn-video-step-fwd å¿«è¿› +0.8sï¼›select #video-rate-select åˆ‡ 1.5xï¼›fill æˆ– drag #video-volume-range è°ƒæ•´éŸ³é‡å¹¶æ ¸å¯¹ #video-vol-textï¼›åˆ‡æ¢ #btn-video-mute ä¸Ž #btn-video-loopã€‚ç”¨ read é›¶ JS è¯»å– #video-state-panel çŠ¶æ€å±žæ€§ï¼Œå†ç”¨ evaluate è¯»å– HTMLMediaElement çš„ currentTime/playbackRate/volume/muted/loop ä¸Žä¹‹å¯¹ç…§ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "click",
+      "select",
+      "fill",
+      "read",
+      "evaluate"
+    ],
+    "required_command_counts": {
+      "click": 5
+    }
+  },
+  {
+    "id": "ARENA-MEDIA-CAPTIONS-FRAME",
+    "kind": "workflow",
+    "page_type": "media",
+    "goal": "/arena-media-studio WebVTT å­—å¹•ä¸Žå¸§é‡‡æ ·ï¼šé€šè¿‡ select #video-caption-select ä¾æ¬¡åˆ‡æ¢ zh -> en -> off -> zhï¼Œå¹¶åœ¨æ¯æ¬¡åˆ‡æ¢å‰åŽå¯»å€åˆ°ä¸åŒç« èŠ‚ï¼Œread #active-caption-banner æ ¸å¯¹å®žæ—¶ cue æ–‡æœ¬ä¸Žè¯­è¨€ä¸€è‡´ï¼ˆoff æ—¶æ˜¾ç¤ºå·²å…³é—­ï¼Œé‡æ–°å¼€å¯ zh åŽ cue æ¢å¤ï¼‰ï¼›å¯»å€åˆ° >1.5s åŽç‚¹å‡» #btn-grab-video-frameï¼Œread #frame-pixel-proof æ ¸å¯¹ videoTime>1.5ã€nonBlackRatio>0 çš„éžå…¨é»‘è§£ç åƒç´ ï¼Œå¹¶ä¸Ž /events ä¸­ video-frame-grabbed ä¸€è‡´ï¼›screenshot ç•™è¯ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "select", "click", "read", "screenshot"],
+    "required_command_counts": {
+      "select": 4,
+      "read": 3
+    }
+  },
+  {
+    "id": "ARENA-MEDIA-AUDIO-PLAYLIST",
+    "kind": "workflow",
+    "page_type": "media",
+    "goal": "/arena-media-studio åŽŸç”Ÿ <audio controls> ä¸Žæ’­å®¢èŠ‚ç›®å•ï¼šéªŒè¯ /arena-audio.wav åŠ è½½ï¼ˆduration>=2.0ï¼‰ï¼Œç‚¹å‡» #btn-audio-toggle æ’­æ”¾/æš‚åœã€#btn-audio-cue-a/b/c è·³è½¬ 0.15s/0.95s/1.75sã€#btn-audio-forward ä¸Ž #btn-audio-rewind åš +0.7s/-0.5s å¯»å€ã€select #audio-rate-select å€é€Ÿã€fill #audio-volume-rangeã€åˆ‡æ¢ #btn-audio-mute ä¸Ž #btn-audio-loopï¼›ç”¨ extract list æŠ½å– #audio-playlist å¹¶åœ¨ 4 æœŸèŠ‚ç›®é—´åˆ‡æ¢ï¼Œæ ¸å¯¹ #current-episode-chip ä¸Ž audio.currentSrc åŒæ­¥ï¼›wheel æ»šåŠ¨ #cue-scroll-containerï¼Œç”¨ extract table æŠ½å– 48 è¡Œ #transcript-cue-tableã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "click",
+      "select",
+      "fill",
+      "wheel",
+      "read",
+      "evaluate",
+      "extract list",
+      "extract table"
+    ],
+    "required_command_counts": {
+      "click": 5
+    }
+  },
+  {
+    "id": "ARENA-SPA-HYDRATION-ROUTES",
+    "kind": "workflow",
+    "page_type": "adversarial-spa",
+    "goal": "/arena-modern-spa-grid?hydrate_ms=180 SSR->CSR æ°´åˆä¸Ž pushState è·¯ç”±ï¼šåœ¨æ°´åˆå®Œæˆå‰åŽå„ cooperate sync ä¸€æ¬¡ï¼Œè¯æ˜Ž #spa-hydrated-main èŠ‚ç‚¹è¢«æ•´ä½“æ›¿æ¢åŽæ—§ ref æŒ‰åˆåŒå¤±æ•ˆã€fresh sync åŽäº¤äº’å‘½ä¸­æ–°èŠ‚ç‚¹ï¼ˆ#spa-app-shell data-hydrated=trueï¼‰ï¼›ç”¨ step ä¸Ž plan åœ¨ #spa-tab-overview / #spa-tab-anomalies / #spa-tab-ledger é—´åˆ‡æ¢ï¼Œread #active-spa-route-label æ ¸å¯¹ URL ?view= åŒæ­¥ï¼›æ‰§è¡Œ navigate back å›žåˆ°ä¸Šä¸€ pushState è§†å›¾ï¼ˆåŒæ–‡æ¡£ popstateï¼‰å¹¶æ ¸å¯¹è·¯ç”±æ ‡ç­¾ï¼›å¯¹ä¸‰å±‚å¤åˆè¡¨å¤´è´¢åŠ¡è¡¨ #hierarchical-fin-table æ‰§è¡Œ extract discover + extract table æ ¸å¯¹ rowspan/colspan åˆ—å¯¹é½ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "step",
+      "plan",
+      "read",
+      "navigate back",
+      "extract discover",
+      "extract table"
+    ],
+    "required_command_counts": {
+      "cooperate sync": 2
+    }
+  },
+  {
+    "id": "ARENA-BFCACHE-HISTORY",
+    "kind": "workflow",
+    "page_type": "adversarial-spa",
+    "goal": "/arena-modern-spa-grid?bfcache=1 çœŸå®ž bfcache å¾€è¿”ï¼šé¡µé¢å“åº” Cache-Control: no-cache ä¸”é›¶ unload ç›‘å¬ã€‚å…ˆç‚¹å‡» #btn-mutate-single-cell ä¸¤æ¬¡è®©å†…å­˜è®¡æ•° #delta-pulse-cell åˆ° rev-2ï¼Œå†ç‚¹å‡» #link-bfcache-detail è¿›å…¥è¯¦æƒ…é¡µå¹¶ç‚¹å‡» #btn-mutate-ephemeral-stateï¼›æ‰§è¡Œé»˜è®¤å‚æ•° navigate back ä¸Ž navigate forwardï¼ˆç¦æ­¢ç”¨ --wait-until commit ç»•è¿‡ï¼‰ï¼Œè¯æ˜Žä¸å‘ç”Ÿ 15s è¶…æ—¶ã€#spa-app-shell çš„ data-last-persisted=true ä¸” rev-2 å†…å­˜æ€ä¿ç•™ã€è¯¦æƒ…é¡µ #detail-persisted-status æ˜¾ç¤º bfcache-restoredã€‚è‹¥ Chrome å› æ‰©å±•/è°ƒè¯•å™¨è¿žæŽ¥æ‹’ç» bfcacheï¼Œéœ€è®°å½• notRestoredReasons å¹¶è®°ä¸º failed/blockedï¼Œä¸å¾—æ”¹ç”¨å†·åŠ è½½å†’å……ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "click",
+      "navigate back",
+      "navigate forward",
+      "read"
+    ],
+    "required_command_counts": {
+      "click": 3
+    }
+  },
+  {
+    "id": "ARENA-ASYNC-NAV-DOWNLOAD",
+    "kind": "workflow",
+    "page_type": "adversarial-spa",
+    "goal": "/arena-modern-spa-grid å¼‚æ­¥å¯¼èˆªä¸Žæµå¼ä¸‹è½½ï¼šç‚¹å‡» #btn-delayed-650ms-nav åŽç”¨ wait-for-navigation éªŒè¯è·¨è¶Š 500ms é™é»˜çª—å£çš„ 650ms å¼‚æ­¥å¯¼èˆªå‡†ç¡®è½åˆ° /arena-bfcache-detail?from=delayed_650msï¼›è¿”å›žåŽç‚¹å‡» #link-slow-doc éªŒè¯ /slow-doc æ…¢æ–‡æ¡£å®Œæ•´åŠ è½½ï¼ˆ#slow-doc-readyï¼‰å¹¶ç» #slow-doc-back è¿”å›žï¼›ç‚¹å‡» #link-cross-origin-302 éªŒè¯ 127.0.0.1 -> localhost è·¨æº 302 é‡å®šå‘åŽæ–°æºé¡µé¢ ref å¯ç”¨ï¼ˆ#detail-origin-proofï¼‰ï¼›æœ€åŽå¯¹ #link-download-stream æ‰§è¡Œ downloadï¼ŒéªŒè¯æ—  Content-Length çš„åˆ†ç‰‡æµå¼ CSV å®Œæ•´è½ç›˜ä¸” SHA-256 ä¸Ž /events ä¸­ download-stream äº‹ä»¶ä¸€è‡´ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "click",
+      "wait-for-navigation",
+      "download",
+      "read"
+    ],
+    "required_command_counts": {
+      "click": 3
+    }
+  },
+  {
+    "id": "ARENA-CSS-STEGANO",
+    "kind": "workflow",
+    "page_type": "adversarial-dom",
+    "goal": "/arena-modern-spa-grid çŽ°ä»£ CSS å¯è§æ€§åˆ¤å®šï¼šåœ¨ observe ä¸Ž cooperate sync è¾“å‡ºä¸­éªŒè¯çº¯ç™½ body èƒŒæ™¯ä¸Šçš„ Tailwind v4 oklch() æ·±è‰²æ¨ªå¹… #oklch-hero-banner å†…ç™½å­— #oklch-hero-title ä¸Ž background-clip:text æ¸å˜å­—æ ‡é¢˜ #gradient-hero-heading å®Œæ•´ä¿ç•™ä¸è¯¯åˆ ï¼›æ··åˆå®¹å™¨ #steg-mixed-textstyle å†…å¯è§åµŒå¥—å­å…ƒç´  #visible-nested-strong ä¿ç•™ï¼Œè€Œéšå½¢çˆ¶æ–‡æœ¬ä¸Žé›¶é€æ˜Žåº¦ã€äºšåƒç´ å­—å·ã€Retina 1pxÃ—1px å¾®ç›’ï¼ˆ.steg-1px-clipï¼‰ã€é€æ˜Žæ¸å˜ #steg-transparent-gradã€å±å¤– #steg-offscreen-relã€æ»šåŠ¨å®¹å™¨å¤– #steg-scroll-rel-offscreen ä¸­çš„ SYNTHETIC_STEGANO_CANARY_* å…¨éƒ¨å‰¥ç¦»ä¸å¤–æ³„ï¼›å¯¹ #steganography-trap-zone å†æ‰§è¡Œ read å¯¹ç…§ï¼Œæ­£å¸¸å¯è§å£°æ˜Ž #visible-legit-notice å¿…é¡»ä¿ç•™ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "observe", "read"]
+  },
+  {
+    "id": "ARENA-SENSITIVE-VAULT",
+    "kind": "workflow",
+    "page_type": "adversarial-dom",
+    "goal": "/arena-modern-spa-grid æ•æ„Ÿå­—æ®µè·¨é€šé“è„±æ•ï¼šå¯¹å±•å¼€çš„ #secret-vault-details åˆ†åˆ«æ‰§è¡Œ observeã€cooperate syncã€snapshot ä¸Ž read --selector #secret-vault-detailsï¼Œè¯æ˜Žå¯†ç æ¡† #vault-pin-passwordï¼ˆALWAYS-MASKED-PINï¼‰ä¸Ž autocomplete=one-time-code çš„ #vault-otp-codeï¼ˆOTP-CANARY-5517ï¼‰åœ¨æ‰€æœ‰é€šé“å‡ä¸å‡ºçŽ°æ˜Žæ–‡ï¼›åŒæ—¶æ™®é€šæ–‡æœ¬æ¡† #vault-api-tokenï¼ˆREDACT-CANARY-9941ï¼‰ä¸Žä¸‹æ‹‰ #vault-cluster-selectï¼ˆVAULT-CLUSTER-8820ï¼‰ä¿æŒå¯è§ï¼Œè¯æ˜Žæ²¡æœ‰è¿‡åº¦è„±æ•ï¼›åªè¯»å®¡è®¡è¡¨ #vault-folded-table å¯æ­£å¸¸ extract tableã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "observe",
+      "snapshot",
+      "read",
+      "extract table"
+    ]
+  },
+  {
+    "id": "ARENA-VIRTUAL-GRID-KEYED",
+    "kind": "workflow",
+    "page_type": "adversarial-dom",
+    "goal": "/arena-modern-spa-grid 5,000 è¡Œé”®æŽ§è™šæ‹Ÿåˆ—è¡¨ï¼ˆé»˜è®¤ keyed æ¨¡å¼ï¼Œä»¿ react-window / TanStack Virtualï¼šä»åœ¨è§†å£å†…çš„è¡Œä¿ç•™åŒä¸€ DOM èŠ‚ç‚¹ï¼‰ï¼šwheel å°å¹…æ»šåŠ¨ #virtual-grid-viewport åŽï¼Œå¯¹æ»šåŠ¨å‰å·²åŒæ­¥ã€æ»šåŠ¨åŽä»å¯è§çš„è¡Œç›´æŽ¥ click å¿…é¡»æˆåŠŸï¼ˆä¸å¾—è¯¯æŠ¥ virtual_row_recycledï¼‰ï¼Œ#vgrid-action-output ä¸Ž /events çš„ orderId ä¸€è‡´ï¼›å†ç”¨ scroll-to ä¸Ž #btn-jump-row-2400 è·³è½¬ï¼Œfresh sync åŽç‚¹å‡» ORD-2405 è¡ŒæŒ‰é’®éªŒè¯å‘½ä¸­æ­£ç¡®ä¸šåŠ¡è¡Œï¼›fill #vgrid-filter-input è¿‡æ»¤åŽ read #vgrid-range-indicator æ ¸å¯¹æŒ‚è½½èŒƒå›´ã€‚",
+    "required_commands": [
+      "navigate",
+      "cooperate sync",
+      "wheel",
+      "scroll-to",
+      "click",
+      "fill",
+      "read"
+    ],
+    "required_command_counts": {
+      "cooperate sync": 2,
+      "click": 3
+    }
+  },
+  {
+    "id": "ARENA-MEGA-VOM-DELTA",
+    "kind": "workflow",
+    "page_type": "adversarial-dom",
+    "goal": "/arena-modern-spa-grid?mega=1ï¼ˆçº¦ 6,800 DOM èŠ‚ç‚¹ã€å¯è§æ–‡æœ¬ >200KBï¼‰å¤§é¡µé¢è§‚æµ‹ï¼šé¦–æ¬¡ cooperate sync å–å¾—å…¨é‡è§‚æµ‹ï¼ˆvom_chars>200000ï¼Œè‹¥è¢« --max-tokens æˆ–é»˜è®¤é¢„ç®—æˆªæ–­éœ€è®°å½• truncated ä¸Žå®žé™…å­—ç¬¦æ•°ï¼‰ï¼Œæ— å˜æ›´æ—¶ç«‹å³é‡å¤ sync å¿…é¡»å‘½ä¸­å¤ç”¨ï¼ˆunchanged/reusedï¼‰ï¼›ç‚¹å‡» #btn-mutate-single-cell åŽå†æ¬¡ syncï¼Œåªè¿”å›žåŒ…å« #delta-pulse-cell æ–°ç‰ˆæœ¬å·çš„å¢žé‡è€Œéžæ•´é¡µé‡å‘ï¼Œå¹¶åœ¨ Benchmark ä¸­è®°å½•ä¸‰æ¬¡ sync çš„è€—æ—¶ä¸Žå­—ç¬¦æ•°ã€‚",
+    "required_commands": ["navigate", "cooperate sync", "click", "read"],
+    "required_command_counts": {
+      "cooperate sync": 3
+    }
+  },
+  {
+    "id": "ARENA-NEG-VIRTUAL-RECYCLE",
+    "kind": "workflow",
+    "page_type": "adversarial-dom",
+    "goal": "/arena-modern-spa-grid?vgrid=pool æ»šåŠ¨è§¦å‘çš„åŽŸä½æ§½ä½å¤ç”¨è´Ÿä¾‹ï¼ˆä»¿ ag-gridï¼šå›ºå®šè¡Œæ§½åœ¨æ»šåŠ¨æ—¶å°±åœ°é‡æ–°ç»‘å®šæ•°æ®ï¼‰ï¼šcooperate sync è®°å½•é¦–æ¡å¯è§è¡ŒæŒ‰é’®çš„ refã€context ä¸Žä¸šåŠ¡é”®ï¼ˆå¦‚ ORD-0003ï¼‰ï¼Œwheel æ»šåŠ¨ #virtual-grid-viewport è‹¥å¹²è¡ŒåŽä¸é‡æ–° syncï¼Œå¤ç”¨æ—§ ref/context/expect æ‰§è¡Œ click å¿…é¡»è¢«å®‰å…¨æ‹’ç»ï¼ˆæœŸæœ› virtual_row_recycledï¼‰ï¼Œæ ¸å¯¹ effect_state:noneã€#vgrid-action-output æœªå˜åŒ–ä¸” /events æœªå‡ºçŽ°é’ˆå¯¹æ–°ç»‘å®šè®¢å•çš„ virtual-order-inspectedã€‚",
+    "required_commands": ["navigate", "cooperate sync", "wheel", "click"],
+    "negative": true
+  }
+]
+
+

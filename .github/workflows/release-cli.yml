@@ -119,6 +119,11 @@ jobs:
         shell: bash
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
+      - name: Link musl-gcc as x86_64-linux-musl-gcc (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: sudo ln -sf $(which musl-gcc) /usr/bin/x86_64-linux-musl-gcc
+
       - name: Build bsk
         shell: bash
         run: cargo build --release --locked -p bsk --target "${{ matrix.target }}"

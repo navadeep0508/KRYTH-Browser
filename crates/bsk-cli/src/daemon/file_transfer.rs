@@ -663,21 +663,25 @@ fn new_id() -> String {
     format!("tr_{}", Uuid::new_v4().simple())
 }
 
-fn set_private_dir(_path: &Path) -> std::io::Result<()> {
+fn set_private_dir(path: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
     }
+    #[cfg(not(unix))]
+    let _ = path;
     Ok(())
 }
 
-fn set_private_file(_file: &File) -> std::io::Result<()> {
+fn set_private_file(file: &File) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         file.set_permissions(fs::Permissions::from_mode(0o600))?;
     }
+    #[cfg(not(unix))]
+    let _ = file;
     Ok(())
 }
 

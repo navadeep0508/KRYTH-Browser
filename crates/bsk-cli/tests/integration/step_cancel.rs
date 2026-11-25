@@ -1,6 +1,6 @@
 //! Exercise a real CLI signal against a controlled late successful RPC response.
 use bsk::daemon::info::DaemonInfo;
-use libc::{kill, SIGINT, pid_t};
+use libc::{SIGINT, kill, pid_t};
 use serde_json::{Value, json};
 use std::{
     process::Stdio,

@@ -88,7 +88,7 @@ pub fn pid_alive(pid: u32) -> bool {
     }
     #[cfg(unix)]
     {
-        use libc::{kill, ESRCH, EPERM, pid_t};
+        use libc::{EPERM, ESRCH, kill, pid_t};
         use std::io::Error;
         unsafe {
             match kill(pid as pid_t, 0) {

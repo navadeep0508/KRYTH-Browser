@@ -117,7 +117,7 @@ jobs:
       - name: Install musl tools (Linux)
         if: runner.os == 'Linux'
         shell: bash
-        run: sudo apt-get update && sudo apt-get install -y musl-tools musl-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential musl-tools musl-dev
 
       - name: Set CC for musl targets (Linux)
         if: runner.os == 'Linux'
@@ -128,7 +128,7 @@ jobs:
 
       - name: Build bsk
         shell: bash
-        run: cargo build --release --locked -p bsk --target "${{ matrix.target }}"
+        run: cargo build --release -p bsk --target "${{ matrix.target }}"
 
       - name: Package artifact
         id: package
@@ -168,7 +168,7 @@ jobs:
           node-version: 20
 
       - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@9 --activate
+        run: corepack enable && corepack prepare pnpm@10 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

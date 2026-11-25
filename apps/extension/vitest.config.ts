@@ -8,7 +8,9 @@ import { DEFAULT_DAEMON_WS_URL } from "./src/transport/generated/methods";
 // `__BSK_EXT_VERSION__` define the production build will inline (review
 // M3 fix to round-1). Pull from `package.json` once so a release bump
 // stays in lockstep across runtime, build, and tests.
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8")) as {
+const pkg = JSON.parse(
+  readFileSync(path.resolve(__dirname, "package.json"), "utf8").replace(/^\uFEFF/, ""),
+) as {
   version: string;
 };
 

@@ -12,7 +12,9 @@ import { DEFAULT_DAEMON_WS_URL } from "./src/transport/generated/methods";
 // trap (review M3 fix to round-1) â€” only the `version` field reaches
 // the production bundle via Vite's `define`.
 const here = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(resolve(here, "package.json"), "utf8")) as { version: string };
+const pkg = JSON.parse(
+  readFileSync(resolve(here, "package.json"), "utf8").replace(/^\uFEFF/, ""),
+) as { version: string };
 const EXTENSION_VERSION = pkg.version;
 let EXTENSION_BUILD = "unknown";
 try {

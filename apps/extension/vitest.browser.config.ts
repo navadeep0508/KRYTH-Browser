@@ -4,7 +4,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import { DEFAULT_DAEMON_WS_URL } from "./src/transport/generated/methods";
 
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8")) as {
+const pkg = JSON.parse(
+  readFileSync(path.resolve(__dirname, "package.json"), "utf8").replace(/^\uFEFF/, ""),
+) as {
   version: string;
 };
 

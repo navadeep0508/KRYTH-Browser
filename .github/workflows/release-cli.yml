@@ -92,11 +92,11 @@ jobs:
             archive: tar.gz
             artifact_name: bsk-v${{ needs.resolve.outputs.version }}-aarch64-unknown-linux-gnu.tar.gz
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-15-intel
             archive: tar.gz
             artifact_name: bsk-v${{ needs.resolve.outputs.version }}-x86_64-apple-darwin.tar.gz
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15
             archive: tar.gz
             artifact_name: bsk-v${{ needs.resolve.outputs.version }}-aarch64-apple-darwin.tar.gz
     outputs:
@@ -113,7 +113,8 @@ jobs:
       - name: Build bsk
         shell: bash
         run: |
-          RUST_BACKTRACE=full cargo build --release -p bsk 2>&1 | tail -80
+          set -o pipefail
+          RUST_BACKTRACE=full cargo build --release --locked -p bsk
 
       - name: Package artifact
         id: package
@@ -121,15 +122,16 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
-          HOST_TARGET=$(rustc --print host)
-          ARTIFACT_NAME="bsk-v${VERSION}-${HOST_TARGET}.${{ matrix.archive }}"
+          ARTIFACT_NAME="${{ matrix.artifact_name }}"
+          ARTIFACT_PATH="${GITHUB_WORKSPACE}/${ARTIFACT_NAME}"
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            pwsh -NoProfile -Command "Compress-Archive -Path target/release/bsk.exe -DestinationPath ${ARTIFACT_NAME}"
+            pwsh -NoProfile -Command "Compress-Archive -LiteralPath '${GITHUB_WORKSPACE}/target/release/bsk.exe' -DestinationPath '${ARTIFACT_PATH}' -Force"
           else
-            tar -czf "${ARTIFACT_NAME}" -C "target/release" bsk
+            tar -czf "${ARTIFACT_PATH}" -C "target/release" bsk
           fi
+          test -f "${ARTIFACT_PATH}"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "artifact_path=${{ runner.temp }}/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=${ARTIFACT_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
@@ -148,20 +150,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - uses: pnpm/action-setup@v6
 
-      - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@10 --activate
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build extension zip
-        run: |
-          cd apps/extension
-          pnpm zip
+        run: pnpm ext:build:zip
 
       - name: Package extension artifact
         id: package
@@ -169,11 +169,24 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
-          ARTIFACT_NAME="kryth-browser-extension-v${VERSION}.zip"
-          cd apps/extension
-          cp dist/chrome-mv3.zip "../${ARTIFACT_NAME}"
+          ARTIFACT_NAME="browser-agent-extension-v${VERSION}-chrome.zip"
+          ZIP=""
+          for dir in apps/extension/dist apps/extension/.output; do
+            if [ -d "$dir" ]; then
+              ZIP="$(find "$dir" -maxdepth 1 -name '*chrome*.zip' -type f 2>/dev/null | head -n 1)"
+              [ -n "$ZIP" ] && break
+            fi
+          done
+          if [ -z "$ZIP" ]; then
+            echo "Could not find the Chrome extension zip"
+            find apps/extension -name '*.zip' -type f || true
+            exit 1
+          fi
+          ARTIFACT_PATH="${GITHUB_WORKSPACE}/${ARTIFACT_NAME}"
+          cp "$ZIP" "${ARTIFACT_PATH}"
+          test -f "${ARTIFACT_PATH}"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "artifact_path=${{ runner.temp }}/${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=${ARTIFACT_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
@@ -190,7 +203,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.ref }}
           persist-credentials: false
 
       - name: Download all CLI artifacts
@@ -222,7 +235,6 @@ jobs:
             sha256sum "$f" | awk '{print $1"  *"$2}'
           done > checksums.txt
           cat checksums.txt
-          echo "checksums_path=${{ runner.temp }}/checksums.txt" >> "$GITHUB_OUTPUT"
 
       - name: Generate version.json manifest
         id: manifest
@@ -234,19 +246,19 @@ jobs:
           TAG="cli-v${VERSION}"
           cd dist
 
-          python3 - <<'PY'
+          VERSION="${VERSION}" TAG="${TAG}" REPO="${REPO}" python3 - <<'PY'
           import json, hashlib, os, sys
-          version = "${VERSION}"
-          tag = "cli-v${VERSION}"
-          repo = "${REPO}"
+          version = os.environ["VERSION"]
+          tag = os.environ["TAG"]
+          repo = os.environ["REPO"]
           server_url = "https://github.com"
           branch = "main"
           release_base = f"{server_url}/{repo}/releases/download/{tag}"
 
           platform_map = {
             "x86_64-pc-windows-msvc": "windows-x64",
-            "x86_64-unknown-linux-musl": "linux-x64",
-            "aarch64-unknown-linux-musl": "linux-arm64",
+            "x86_64-unknown-linux-gnu": "linux-x64",
+            "aarch64-unknown-linux-gnu": "linux-arm64",
             "x86_64-apple-darwin": "darwin-x64",
             "aarch64-apple-darwin": "darwin-arm64",
           }
@@ -287,6 +299,18 @@ jobs:
                     "sha256": sha,
                 }
 
+          expected = {
+              "windows-x64",
+              "linux-x64",
+              "linux-arm64",
+              "darwin-x64",
+              "darwin-arm64",
+              "browser-extension",
+          }
+          missing = expected - assets.keys()
+          if missing:
+              raise SystemExit(f"missing release artifacts: {', '.join(sorted(missing))}")
+
           manifest = {
               "name": "bsk",
               "version": version,
@@ -304,16 +328,16 @@ jobs:
           print(json.dumps(manifest, indent=2))
           PY
 
-          echo "manifest_path=${{ runner.temp }}/version.json" >> "$GITHUB_OUTPUT"
-
       - name: Create GitHub Release
         id: create_release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
           TAG="cli-v${VERSION}"
-          RELEASE_NOTES=$(cat <<'EOF'
+          RELEASE_NOTES=$(cat <<EOF
           # Browser Agent CLI v${VERSION}
 
           ## Installation
@@ -339,18 +363,27 @@ jobs:
           Verify each downloaded artifact against checksums.txt before installation.
           EOF
           )
-          RELEASE_NOTES_ESCAPED=$(printf '%s' "$RELEASE_NOTES" | awk '{printf "%s\\n", $0}')
 
-          gh release create "${TAG}" \
-            --title "Browser Agent CLI v${VERSION}" \
-            --notes "${RELEASE_NOTES_ESCAPED}" \
-            --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" \
-            --latest
+          if gh release view "${TAG}" --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" \
+              --title "Browser Agent CLI v${VERSION}" \
+              --notes "${RELEASE_NOTES}" \
+              --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" \
+              --latest
+          else
+            gh release create "${TAG}" \
+              --title "Browser Agent CLI v${VERSION}" \
+              --notes "${RELEASE_NOTES}" \
+              --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" \
+              --latest
+          fi
 
           echo "release_created=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Upload CLI assets to release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
@@ -362,6 +395,8 @@ jobs:
 
       - name: Upload extension asset to release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"
@@ -373,6 +408,8 @@ jobs:
 
       - name: Upload checksums and version.json to release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.resolve.outputs.version }}"

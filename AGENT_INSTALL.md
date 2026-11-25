@@ -105,11 +105,9 @@ go to Step 4.
 
 If the intended browser is already connected, continue to Step 5.
 
-If the extension is not installed, give the user the page matching their browser â€”
-[Chrome Web Store](https://chromewebstore.google.com/detail/hhcmgoofomhgciiibhipgmgkgnoenaoi)
-for Chrome and other Chromium browsers,
-[Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/extension/emacgiaaaiojkkpkddmmdfhmokgmnikg)
-for Microsoft Edge â€” and ask them to install it on the computer with that browser.
+If the extension is not installed, install the Browser Agent extension for your browser â€”
+from the Chrome Web Store (for Chrome and other Chromium browsers) or Edge Add-ons
+(for Microsoft Edge), then ask them to install it on the computer with that browser.
 
 - **Local:** enable the connection and continue when connected. Pairing is optional;
   an unpaired warning does not block installation or browser use. Do not make the

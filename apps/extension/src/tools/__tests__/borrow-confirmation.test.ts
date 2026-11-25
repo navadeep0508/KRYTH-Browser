@@ -814,7 +814,7 @@ describe("isInjectableContentScriptUrl", () => {
   it("rejects the Edge Add-ons store", () => {
     expect(
       isInjectableContentScriptUrl(
-        "https://microsoftedge.microsoft.com/addons/detail/Browser Agent/emacgiaaaiojkkpkddmmdfhmokgmnikg",
+        "https://microsoftedge.microsoft.com/addons/detail/extension",
       ),
     ).toBe(false);
     // Non-store paths on the same host stay injectable.

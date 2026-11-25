@@ -22,12 +22,9 @@ use crate::daemon::probe::{self, Probe};
 use crate::daemon::start_error::{DaemonStartFailure, recovery_hint};
 use crate::daemon::state::PROTOCOL_VERSION;
 
-/// Chrome Web Store listing for the Browser Agent extension.
-const EXTENSION_STORE_URL: &str =
-    "https://chromewebstore.google.com/detail/hhcmgoofomhgciiibhipgmgkgnoenaoi";
-
-/// Edge Add-ons listing for the Browser Agent extension.
-const EXTENSION_STORE_URL_EDGE: &str = "https://microsoftedge.microsoft.com/addons/detail/Browser Agent/emacgiaaaiojkkpkddmmdfhmokgmnikg";
+/// Browser extension store listings.
+const EXTENSION_STORE_URL: &str = "https://chromewebstore.google.com";
+const EXTENSION_STORE_URL_EDGE: &str = "https://microsoftedge.microsoft.com/addons";
 
 /// Store listings highlighted in repair hints, in the order they appear.
 const EXTENSION_STORE_URLS: [&str; 2] = [EXTENSION_STORE_URL, EXTENSION_STORE_URL_EDGE];

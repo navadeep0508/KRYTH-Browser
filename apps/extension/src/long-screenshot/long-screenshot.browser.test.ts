@@ -539,7 +539,7 @@ describe.skipIf(!process.env.BSK_TEST_CHROME)("full-page screenshot in a real ex
 
   it.each([
     "chrome://version/",
-    "https://chromewebstore.google.com/",
+    "https://example.store/",
   ])("captures restricted page %s after an explicit extension action", async (url) => {
     await withHarness(async (h) => {
       await h.send("Page.navigate", { url }, h.page.sessionId);

@@ -68,7 +68,7 @@ const FIXTURES: { name: string; text: string; reference: number }[] = [
   },
   {
     name: "URL with an opaque id",
-    text: "https://chromewebstore.google.com/detail/hhcmgoofomhgciiibhipgmgkgnoenaoi",
+    text: "https://chromewebstore.google.com/detail/extension",
     reference: 24,
   },
   {

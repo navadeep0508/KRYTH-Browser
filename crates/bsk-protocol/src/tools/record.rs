@@ -1,4 +1,4 @@
-﻿//! Semantic user-action recording (`tool.record_start` / `stop` / `await`).
+//! Semantic user-action recording (`tool.record_start` / `stop` / `await`).
 //!
 //! Wire traces always use Trace v3 (`version: 3`, `states[]`).
 
@@ -362,4 +362,3 @@ mod tests {
         assert_eq!(trace.steps.len(), 2);
     }
 }
-

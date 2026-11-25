@@ -1,4 +1,4 @@
-﻿//! Domestic downloads first, with a version-pinned GitHub fallback. Explicit
+//! Domestic downloads first, with a version-pinned GitHub fallback. Explicit
 //! manifest overrides remain isolated from the built-in public sources.
 
 use super::*;
@@ -152,6 +152,3 @@ pub(super) fn try_sources<'a, T>(
         ),
     }))
 }
-
-
-

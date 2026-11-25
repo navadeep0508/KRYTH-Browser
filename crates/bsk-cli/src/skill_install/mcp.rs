@@ -1,4 +1,4 @@
-﻿//! Optional MCP configuration installed alongside the skill.
+//! Optional MCP configuration installed alongside the skill.
 //!
 //! Preserve existing settings and refuse to replace a different server entry.
 use std::fs;
@@ -203,5 +203,3 @@ mod tests {
         }
     }
 }
-
-

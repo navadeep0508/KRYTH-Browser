@@ -1,4 +1,4 @@
-﻿//! The Browser Agent MCP tools and their mapping onto daemon RPCs.
+//! The Browser Agent MCP tools and their mapping onto daemon RPCs.
 //!
 //! Eleven base tools (plus opt-in `bsk_recipe`) provide full CLI parity, each
 //! selecting an operation with `action`, while `bsk_plan` runs several input
@@ -5108,4 +5108,3 @@ pub(crate) mod tests {
         assert!(inner.contains(&json!({ "type": "null" })));
     }
 }
-

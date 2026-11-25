@@ -1,4 +1,4 @@
-﻿//! Non-tool protocol payloads (`system.handshake`, `system.ping`, `system.status`).
+//! Non-tool protocol payloads (`system.handshake`, `system.ping`, `system.status`).
 
 use std::cmp::Ordering;
 
@@ -1048,4 +1048,3 @@ mod status_compat_tests {
         );
     }
 }
-

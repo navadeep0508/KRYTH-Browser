@@ -1,4 +1,4 @@
-﻿//! WebSocket server: accepts extension clients, validates Origin, runs the
+//! WebSocket server: accepts extension clients, validates Origin, runs the
 //! handshake exchange, and forwards tool responses back through the
 //! per-browser `BrowserSink`.
 //!
@@ -1878,4 +1878,3 @@ mod ws_connection_limit_tests {
         handle.shutdown.notify_one();
     }
 }
-

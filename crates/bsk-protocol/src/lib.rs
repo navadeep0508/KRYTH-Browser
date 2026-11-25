@@ -1,4 +1,4 @@
-﻿//! browser-agent wire protocol â€” frames, methods, tool payloads, handshake.
+//! browser-agent wire protocol â€” frames, methods, tool payloads, handshake.
 
 pub mod cancel;
 pub mod catalog;
@@ -46,4 +46,3 @@ pub use system::{
     evaluate_handshake_compat,
 };
 pub use tools::*;
-

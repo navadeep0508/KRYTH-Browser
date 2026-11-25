@@ -1,4 +1,4 @@
-﻿//! `bsk mcp`: Browser Agent tools for Model Context Protocol clients.
+//! `bsk mcp`: Browser Agent tools for Model Context Protocol clients.
 //!
 //! The server speaks newline-delimited JSON-RPC 2.0 on stdin/stdout and
 //! forwards each tool call to the local daemon over IPC, as the CLI does,
@@ -37,4 +37,3 @@ pub fn dispatch(_args: McpArgs) -> Result<(), CliError> {
     runtime.shutdown_timeout(Duration::from_secs(5));
     result.map_err(CliError::Local)
 }
-

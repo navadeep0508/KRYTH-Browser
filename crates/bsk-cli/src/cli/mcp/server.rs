@@ -1,4 +1,4 @@
-﻿//! JSON-RPC 2.0 framing and the MCP lifecycle for `bsk mcp`.
+//! JSON-RPC 2.0 framing and the MCP lifecycle for `bsk mcp`.
 //!
 //! One message per line, as the MCP stdio transport requires. Requests other
 //! than `tools/call` are answered inline; each tool call runs in its own task
@@ -848,5 +848,3 @@ mod tests {
         daemon.abort();
     }
 }
-
-

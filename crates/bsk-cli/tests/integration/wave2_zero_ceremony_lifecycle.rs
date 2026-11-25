@@ -1,4 +1,4 @@
-﻿//! Wave 2 integration & regression gates:
+//! Wave 2 integration & regression gates:
 //! - Zero-ceremony lifecycle (`bsk open`, `bsk sync`, `bsk close`)
 //! - Daemon in-memory `ImplicitScopeRegistry` (`caller_scope` priority, `c1`/`o1` short tokens, `last_vom` hydration)
 //! - Anti-silent-hijack guard & multi-agent / multi-MCP concurrency isolation
@@ -1181,4 +1181,3 @@ async fn concurrent_open_in_same_scope_serializes_and_tab_create_isolates_implic
 
     env.shutdown().await;
 }
-

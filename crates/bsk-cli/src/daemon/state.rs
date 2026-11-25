@@ -1,4 +1,4 @@
-﻿//! Daemon-wide shared state: config, browser registry, session registry.
+//! Daemon-wide shared state: config, browser registry, session registry.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -394,4 +394,3 @@ pub(crate) async fn await_join<T>(handle: JoinHandle<T>) -> anyhow::Result<()> {
         Err(err) => Err(err.into()),
     }
 }
-

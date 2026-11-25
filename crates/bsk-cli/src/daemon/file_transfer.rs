@@ -1,4 +1,4 @@
-﻿//! Session-scoped, content-transparent staging for upload/download tools.
+//! Session-scoped, content-transparent staging for upload/download tools.
 //!
 //! The registry deliberately exposes no arbitrary-path operations. Upload
 //! bytes arrive from the invoking CLI in bounded chunks; browser downloads
@@ -1150,4 +1150,3 @@ mod tests {
         );
     }
 }
-

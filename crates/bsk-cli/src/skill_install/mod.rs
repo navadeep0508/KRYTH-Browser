@@ -1,4 +1,4 @@
-﻿//! Install bundled or custom Browser Agent packages into agent skill directories.
+//! Install bundled or custom Browser Agent packages into agent skill directories.
 
 mod bundle;
 mod conflicts;
@@ -383,7 +383,11 @@ pub fn run_interactive_prompt(reports: &[HarnessReport]) -> Result<Vec<HarnessId
 pub fn print_harness_table(reports: &[HarnessReport], heading: &str) {
     eprint!("{heading}");
     for (index, report) in reports.iter().enumerate() {
-        let marker = if report.detected { "detected" } else { "â€”" };
+        let marker = if report.detected {
+            "detected"
+        } else {
+            "â€”"
+        };
         let installed = if report.installed {
             ", skill installed"
         } else {
@@ -795,5 +799,3 @@ mod tests {
 
 #[cfg(test)]
 mod bundle_tests;
-
-

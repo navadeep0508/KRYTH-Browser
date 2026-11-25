@@ -1,4 +1,4 @@
-﻿//! Real CLI cancellation over Unix sockets / Windows named pipes, including
+//! Real CLI cancellation over Unix sockets / Windows named pipes, including
 //! caller-owned transfer cleanup and cancellation before RPC registration.
 #![cfg(any(unix, windows))]
 
@@ -437,4 +437,3 @@ async fn exercise(transfers: Arc<TransferRegistry>, staging_root: &Path) {
         }
     }
 }
-

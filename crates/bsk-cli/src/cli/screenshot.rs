@@ -1,4 +1,4 @@
-﻿//! `bsk screenshot` â€” viewport, DOM element / Canvas region ref PNGs,
+//! `bsk screenshot` â€” viewport, DOM element / Canvas region ref PNGs,
 //! and disk-streamed full-page captures.
 //! The CLI alone owns the final output path; full-page image bytes arrive in
 //! bounded chunks and become visible only after a complete atomic write.
@@ -534,4 +534,3 @@ mod tests {
         );
     }
 }
-

@@ -1,4 +1,4 @@
-﻿//! Device grants stored as hashes, with atomic writes shared by CLI and server.
+//! Device grants stored as hashes, with atomic writes shared by CLI and server.
 
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
@@ -662,4 +662,3 @@ mod tests {
         assert!(store.pair().is_ok());
     }
 }
-

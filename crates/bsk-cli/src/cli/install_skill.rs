@@ -1,4 +1,4 @@
-﻿//! `bsk install-skill` â€” install the complete browser-agent package into agent harnesses.
+//! `bsk install-skill` â€” install the complete browser-agent package into agent harnesses.
 
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
@@ -337,4 +337,3 @@ mod tests {
         assert!(resolve_targets(&args(false, true), &reports).is_err());
     }
 }
-

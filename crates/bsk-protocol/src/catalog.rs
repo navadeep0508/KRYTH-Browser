@@ -1,4 +1,4 @@
-﻿//! Export the protocol from the same catalog used by Rust dispatch.
+//! Export the protocol from the same catalog used by Rust dispatch.
 //!
 //! Daemon-local payloads deliberately remain outside the extension contract.
 //! Shared and extension methods, plus handshake/error/event roots, are exported in full.
@@ -161,4 +161,3 @@ pub fn export() -> Value {
         "output_schema": output,
     })
 }
-

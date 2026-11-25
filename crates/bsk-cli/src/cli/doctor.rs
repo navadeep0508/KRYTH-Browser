@@ -1,4 +1,4 @@
-﻿//! `bsk doctor` â€” guided diagnostics + repair hints.
+//! `bsk doctor` â€” guided diagnostics + repair hints.
 
 use std::time::Duration;
 
@@ -1405,4 +1405,3 @@ mod m2_tests {
         assert_eq!(json["hint"], serde_json::json!("please fix"));
     }
 }
-

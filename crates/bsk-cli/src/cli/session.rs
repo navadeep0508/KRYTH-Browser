@@ -1,4 +1,4 @@
-﻿//! `bsk session start|stop|list` â€” session lifecycle commands (M5).
+//! `bsk session start|stop|list` â€” session lifecycle commands (M5).
 //!
 //! Each subcommand auto-spawns the daemon (via [`ensure_daemon`]) and
 //! issues a typed RPC over the JSON-line IPC transport. Output is
@@ -1077,4 +1077,3 @@ mod i3_tests {
         assert!(stderr.contains("details: requested browser is not connected"));
     }
 }
-

@@ -1,4 +1,4 @@
-﻿//! CLI-side IPC client: reads `~/.bsk/daemon.json` for the socket path
+//! CLI-side IPC client: reads `~/.bsk/daemon.json` for the socket path
 //! and issues typed JSON-line RPCs over it.
 //!
 //! Each [`Client::call`] is a fresh connection (cheap: UDS is local).
@@ -1128,6 +1128,3 @@ fn random_id() -> String {
     rng.fill(&mut bytes[..]);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-
-
-

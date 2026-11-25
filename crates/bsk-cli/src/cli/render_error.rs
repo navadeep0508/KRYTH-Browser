@@ -1,4 +1,4 @@
-﻿//! Single source of truth for the human-readable summary, repair
+//! Single source of truth for the human-readable summary, repair
 //! hint, and exit code attached to every [`ErrorCode`] variant.
 //!
 //! Keeping the table in one place means:
@@ -2137,4 +2137,3 @@ mod tests {
         assert!(line.chars().count() < 250, "{line}");
     }
 }
-

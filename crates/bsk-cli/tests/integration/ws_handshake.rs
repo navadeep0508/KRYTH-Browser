@@ -1,4 +1,4 @@
-﻿//! M4.4 integration: spin up the minimal daemon, connect a fake extension
+//! M4.4 integration: spin up the minimal daemon, connect a fake extension
 //! over WebSocket, verify the Origin allow-list and `system.handshake`
 //! registration logic.
 
@@ -192,4 +192,3 @@ async fn ws_kicks_non_handshake_first_frame() {
     }
     handle.shutdown().await;
 }
-

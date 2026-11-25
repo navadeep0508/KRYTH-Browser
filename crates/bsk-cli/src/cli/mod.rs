@@ -1,4 +1,4 @@
-﻿//! Top-level CLI definition (clap derive).
+//! Top-level CLI definition (clap derive).
 
 use std::time::Duration;
 
@@ -457,5 +457,3 @@ mod action_condition_tests {
         );
     }
 }
-
-

@@ -1,4 +1,4 @@
-﻿//! Trace v3 â€” state-action-state log with `states[]` and step `state` refs.
+//! Trace v3 â€” state-action-state log with `states[]` and step `state` refs.
 //!
 //! Wire format with top-level `version: 3`.
 
@@ -438,4 +438,3 @@ mod tests {
         assert_eq!(trace.steps.len(), 2);
     }
 }
-

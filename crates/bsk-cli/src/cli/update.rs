@@ -1,4 +1,4 @@
-﻿//! `bsk update` â€” check for and install CLI updates.
+//! `bsk update` â€” check for and install CLI updates.
 
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
@@ -2326,6 +2326,3 @@ mod tests {
         cursor.into_inner()
     }
 }
-
-
-

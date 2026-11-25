@@ -113,8 +113,19 @@ jobs:
       - name: Build bsk
         shell: bash
         run: |
-          set -o pipefail
-          RUST_BACKTRACE=full cargo build --release --locked -p bsk
+          set -eo pipefail
+          echo "runner_arch=$(uname -m)"
+          echo "rust_host=$(rustc --print host)"
+          RUST_BACKTRACE=full cargo build --release --locked -p bsk --verbose 2>&1 | tee "${GITHUB_WORKSPACE}/cargo-build.log"
+
+      - name: Upload failed build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-build-log
+          path: cargo-build.log
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Package artifact
         id: package
